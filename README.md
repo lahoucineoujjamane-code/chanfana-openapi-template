@@ -1,72 +1,92 @@
-# OpenAPI Template
+# GeoTopo Pro
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/chanfana-openapi-template)
+Application de cartographie topographique professionnelle / Professional topographic mapping app.
+**100% client-side. Aucun serveur backend. Aucune clé API. / No backend, no API key.**
 
-![OpenAPI Template Preview](https://imagedelivery.net/wSMYJvS3Xw-n339CbDyDIA/91076b39-1f5b-46f6-7f14-536a6f183000/public)
+---
 
-<!-- dash-content-start -->
+## Fonctions / Features
 
-This is a Cloudflare Worker with OpenAPI 3.1 Auto Generation and Validation using [chanfana](https://github.com/cloudflare/chanfana) and [Hono](https://github.com/honojs/hono).
+**Dessin / Drawing**
+- Points, lignes, polygones, rectangles, cercles
+- Édition (déplacer sommets) + suppression sélective + tout effacer
+- Edit vertices, delete selected, clear all
 
-This is an example project made to be used as a quick start into building OpenAPI compliant Workers that generates the
-`openapi.json` schema automatically from code and validates the incoming request to the defined parameters or request body.
+**Mesure / Measure**
+- Distance (cliquez plusieurs points, double-clic = fin)
+- Surface (polygone)
+- Unités métriques / impériales
 
-This template includes various endpoints, a D1 database, and integration tests using [Vitest](https://vitest.dev/) as examples. In endpoints, you will find [chanfana D1 AutoEndpoints](https://chanfana.com/endpoints/auto/d1) and a [normal endpoint](https://chanfana.com/endpoints/defining-endpoints) to serve as examples for your projects.
+**Coordonnées / Coordinates**
+- Affichage temps réel sous le curseur dans le CRS choisi
+- Systèmes : WGS84, Web Mercator, **Lambert Merchich Maroc (Zones 1, 2, Sahara)**, **les 120 zones UTM (N/S)**
+- « Aller à des coordonnées » : saisir X/Y dans n'importe quel CRS → place un point
 
-Besides being able to see the OpenAPI schema (openapi.json) in the browser, you can also extract the schema locally no hassle by running this command `npm run schema`.
+**Import / Export**
+- Import : KML, GeoJSON, CSV, GPX, **DXF**
+- Export : GeoJSON, KML, CSV, GPX, **DXF** (ouvre dans AutoCAD/QGIS), **PDF** (tableau de coordonnées)
 
-<!-- dash-content-end -->
+> Note DWG : format propriétaire Autodesk, illisible en JavaScript pur. Le **DXF** exporté s'ouvre directement dans AutoCAD, Civil3D, QGIS, etc. — utilisez « Enregistrer sous DWG » dans AutoCAD si besoin du .dwg.
 
-> [!IMPORTANT]
-> When using C3 to create this project, select "no" when it asks if you want to deploy. You need to follow this project's [setup steps](https://github.com/cloudflare/templates/tree/main/openapi-template#setup-steps) before deploying.
+**Fonds de carte / Base maps**
+- OpenStreetMap, **OpenTopoMap (topographique)**, Satellite Esri, Terrain Esri
+- Réglage d'opacité
 
-## Getting Started
+**PWA** — installable sur Android/iOS/Bureau, fonctionne hors-ligne (coquille + dernières tuiles).
 
-Outside of this repo, you can start a new project with this template using [C3](https://developers.cloudflare.com/pages/get-started/c3/) (the `create-cloudflare` CLI):
+**Bilingue** FR / EN — bouton en haut à droite.
 
+---
+
+## Déploiement sur serveur gratuit / Deploy to a free host
+
+### Option 1 — Netlify (glisser-déposer, le plus simple)
+1. Allez sur https://app.netlify.com/drop
+2. Glissez **tout le dossier** `geotopo` dans la zone
+3. C'est en ligne — vous recevez une URL `https://xxx.netlify.app`
+4. (Optionnel) Renommez le site dans *Site settings → Change site name*
+
+### Option 2 — GitHub Pages
 ```bash
-npm create cloudflare@latest -- --template=cloudflare/templates/openapi-template
+# dans le dossier geotopo
+git init
+git add .
+git commit -m "GeoTopo Pro"
+git branch -M main
+git remote add origin https://github.com/VOTRE_USER/geotopo.git
+git push -u origin main
+```
+Puis : **Settings → Pages → Source: main / root → Save**.
+URL : `https://VOTRE_USER.github.io/geotopo/`
+
+### Option 3 — Cloudflare Pages
+1. https://pages.cloudflare.com → *Create project → Direct Upload*
+2. Téléversez le dossier → déployé sur `https://xxx.pages.dev`
+
+---
+
+## Transformer en APK / Build an APK
+L'app étant une **PWA**, le plus simple :
+1. Déployez (Netlify/GitHub Pages) pour obtenir une URL HTTPS
+2. Allez sur https://www.pwabuilder.com
+3. Collez l'URL → *Build → Android* → téléchargez le **`.apk`** signé prêt à installer
+
+---
+
+## Fichiers / Files
+```
+geotopo/
+├── index.html      interface + styles
+├── app.js          moteur (carte, dessin, mesure, conversions, I/O)
+├── manifest.json   PWA
+├── sw.js           service worker (hors-ligne)
+├── icon-192.png
+└── icon-512.png
 ```
 
-A live public deployment of this template is available at [https://openapi-template.templates.workers.dev](https://openapi-template.templates.workers.dev)
-
-## Setup Steps
-
-1. Install the project dependencies with a package manager of your choice:
-   ```bash
-   npm install
-   ```
-2. Create a [D1 database](https://developers.cloudflare.com/d1/get-started/) with the name "openapi-template-db":
-   ```bash
-   npx wrangler d1 create openapi-template-db
-   ```
-   ...and update the `database_id` field in `wrangler.json` with the new database ID.
-3. Run the following db migration to initialize the database (notice the `migrations` directory in this project):
-   ```bash
-   npx wrangler d1 migrations apply DB --remote
-   ```
-4. Deploy the project!
-   ```bash
-   npx wrangler deploy
-   ```
-5. Monitor your worker
-   ```bash
-   npx wrangler tail
-   ```
-
-## Testing
-
-This template includes integration tests using [Vitest](https://vitest.dev/). To run the tests locally:
-
+## Test local / Run locally
 ```bash
-npm run test
+cd geotopo
+python3 -m http.server 8000
+# ouvrez http://localhost:8000
 ```
-
-Test files are located in the `tests/` directory, with examples demonstrating how to test your endpoints and database interactions.
-
-## Project structure
-
-1. Your main router is defined in `src/index.ts`.
-2. Each endpoint has its own file in `src/endpoints/`.
-3. Integration tests are located in the `tests/` directory.
-4. For more information read the [chanfana documentation](https://chanfana.com/), [Hono documentation](https://hono.dev/docs), and [Vitest documentation](https://vitest.dev/guide/).

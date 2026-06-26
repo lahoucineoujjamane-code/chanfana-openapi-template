@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<meta name="theme-color" content="#0f1729">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>GeoTopo Pro</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+<style>
+:root{
+  --bg:#0f1729; --panel:#15203a; --panel2:#1d2b4d;
+  --line:#2a3a5f; --txt:#e8edf7; --muted:#8fa0c4; --accent:#19c6a8;
+  --accent2:#3b82f6; --warn:#f59e0b; --danger:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);overflow:hidden}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);z-index:1000;flex-shrink:0}
+header .logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:18px;letter-spacing:.3px}
+header .logo .mark{width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-bottom:19px solid var(--accent)}
+header .logo b{color:var(--accent)}
+header .status{font-size:12px;color:var(--muted)}
+header .spacer{flex:1}
+.langbtn{background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:6px 10px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600}
+.langbtn:hover{border-color:var(--accent)}
+
+.main{flex:1;display:flex;min-height:0;position:relative}
+#map{flex:1;height:100%;background:#dfe4ea}
+
+/* Sidebar */
+.sidebar{width:320px;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column}
+.sidebar.left{border-left:none;border-right:1px solid var(--line)}
+.section{border-bottom:1px solid var(--line)}
+.section h3{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:12px 14px 6px}
+.section .body{padding:0 14px 14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.btn{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:9px 8px;border-radius:9px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;white-space:nowrap}
+.btn:hover{border-color:var(--accent);background:#22325a}
+.btn.active{background:var(--accent);color:#04201b;border-color:var(--accent);font-weight:700}
+.btn.sm{padding:7px 8px;font-size:12px}
+.btn.danger:hover{border-color:var(--danger);color:#fff;background:var(--danger)}
+.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:600}
+.btn.primary:hover{background:#2f6fe0}
+.btn .ic{font-size:15px;line-height:1}
+select,input{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--txt);padding:9px 10px;border-radius:8px;font-size:13px;font-family:inherit}
+select:focus,input:focus{outline:none;border-color:var(--accent)}
+label.fld{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+
+/* Coordinate panel */
+.coordbox{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;line-height:1.7;word-break:break-all}
+.coordbox .k{color:var(--muted)}
+.coordbox .v{color:var(--accent)}
+
+/* Feature list */
+.flist{max-height:220px;overflow-y:auto}
+.fitem{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;font-size:13px;background:var(--bg)}
+.fitem .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.fitem .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fitem .x{cursor:pointer;color:var(--muted);font-size:16px;padding:0 4px}
+.fitem .x:hover{color:var(--danger)}
+.empty{color:var(--muted);font-size:12px;font-style:italic;padding:6px 0}
+
+/* Mobile toggles */
+.mtoggle{display:none;position:absolute;z-index:1500;background:var(--panel);border:1px solid var(--line);color:var(--txt);width:42px;height:42px;border-radius:11px;font-size:20px;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+#mtL{top:12px;left:12px}
+#mtR{top:12px;right:12px}
+
+.measure-readout{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:1200;background:var(--panel);border:1px solid var(--accent);padding:8px 16px;border-radius:10px;font-size:14px;font-family:ui-monospace,monospace;display:none;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);z-index:3000;background:var(--accent);color:#04201b;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:600;opacity:0;transition:.3s;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{background:var(--danger);color:#fff}
+
+input[type=file]{display:none}
+
+@media(max-width:900px){
+  .sidebar{position:absolute;top:0;bottom:0;z-index:1400;width:88%;max-width:340px;transition:transform .25s;box-shadow:0 0 30px rgba(0,0,0,.5)}
+  .sidebar.left{left:0;transform:translateX(-105%)}
+  .sidebar.left.open{transform:translateX(0)}
+  .sidebar.right{right:0;transform:translateX(105%)}
+  .sidebar.right.open{transform:translateX(0)}
+  .mtoggle{display:flex}
+}
+.leaflet-control-attribution{font-size:9px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo"><span class="mark"></span> GeoTopo <b>Pro</b></div>
+    <span class="status" id="status">✓</span>
+    <span class="spacer"></span>
+    <button class="langbtn" id="langBtn">EN</button>
+  </header>
+  <div class="main">
+    <button class="mtoggle" id="mtL">🛠</button>
+    <button class="mtoggle" id="mtR">📍</button>
+
+    <!-- LEFT: tools -->
+    <aside class="sidebar left" id="sideL">
+      <div class="section">
+        <h3 data-i18n="tools_draw">Outils de dessin</h3>
+        <div class="body">
+          <div class="row">
+            <button class="btn" id="tPoint"><span class="ic">📍</span><span data-i18n="point">Point</span></button>
+            <button class="btn" id="tLine"><span class="ic">／</span><span data-i18n="line">Ligne</span></button>
+          </div>
+          <div class="row">
+            <button class="btn" id="tPoly"><span class="ic">▰</span><span data-i18n="polygon">Polygone</span></button>
+            <button class="btn" id="tRect"><span class="ic">▭</span><span data-i18n="rect">Rectangle</span></button>
+          </div>
+          <div class="row">
+            <button class="btn" id="tCircle"><span class="ic">◯</span><span data-i18n="circle">Cercle</span></button>
+            <button class="btn" id="tEdit"><span class="ic">✎</span><span data-i18n="edit">Éditer</span></button>
+          </div>
+          <div class="row">
+            <button class="btn danger" id="tDelSel"><span class="ic">🗑</span><span data-i18n="delete">Supprimer</span></button>
+            <button class="btn danger" id="tClear"><span class="ic">✕</span><span data-i18n="clear">Tout effacer</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 data-i18n="tools_measure">Mesure</h3>
+        <div class="body">
+          <div class="row">
+            <button class="btn" id="mDist"><span class="ic">📏</span><span data-i18n="distance">Distance</span></button>
+            <button class="btn" id="mArea"><span class="ic">⬡</span><span data-i18n="area">Surface</span></button>
+          </div>
+          <label class="fld" data-i18n="units">Unités</label>
+          <select id="units">
+            <option value="metric" data-i18n="metric">Métrique (m / km / ha)</option>
+            <option value="imperial" data-i18n="imperial">Impérial (ft / mi / ac)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 data-i18n="basemaps">Fonds de carte</h3>
+        <div class="body">
+          <label class="fld" data-i18n="layer">Couche</label>
+          <select id="baseSel"></select>
+          <label class="fld" data-i18n="opacity">Opacité</label>
+          <input type="range" id="opacity" min="20" max="100" value="100">
+        </div>
+      </div>
+    </aside>
+
+    <div id="map"></div>
+
+    <!-- RIGHT: coords + IO + features -->
+    <aside class="sidebar right" id="sideR">
+      <div class="section">
+        <h3 data-i18n="coords">Coordonnées</h3>
+        <div class="body">
+          <label class="fld" data-i18n="crs">Système (CRS)</label>
+          <select id="crsSel"></select>
+          <div class="coordbox" id="coordOut">
+            <div><span class="k" data-i18n="cursor">Curseur</span></div>
+          </div>
+          <label class="fld" data-i18n="goto">Aller à des coordonnées</label>
+          <div class="row">
+            <input id="gX" placeholder="X / Lon">
+            <input id="gY" placeholder="Y / Lat">
+          </div>
+          <button class="btn primary" id="goBtn" data-i18n="goto_btn">Aller / Ajouter point</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 data-i18n="io">Import / Export</h3>
+        <div class="body">
+          <button class="btn" id="impBtn" style="width:100%;margin-bottom:8px"><span class="ic">📥</span><span data-i18n="import">Importer (KML, GeoJSON, CSV, GPX, DXF)</span></button>
+          <input type="file" id="impFile" accept=".kml,.geojson,.json,.csv,.gpx,.dxf,.txt">
+          <label class="fld" data-i18n="export_as">Exporter en</label>
+          <div class="row">
+            <button class="btn sm" data-exp="geojson">GeoJSON</button>
+            <button class="btn sm" data-exp="kml">KML</button>
+            <button class="btn sm" data-exp="csv">CSV</button>
+          </div>
+          <div class="row">
+            <button class="btn sm" data-exp="gpx">GPX</button>
+            <button class="btn sm" data-exp="dxf">DXF</button>
+            <button class="btn sm" data-exp="pdf">PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 data-i18n="features">Éléments (<span id="fcount">0</span>)</h3>
+        <div class="body">
+          <div class="flist" id="flist"><div class="empty" data-i18n="no_feat">Aucun élément.</div></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="measure-readout" id="measureOut"></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.2/proj4leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
