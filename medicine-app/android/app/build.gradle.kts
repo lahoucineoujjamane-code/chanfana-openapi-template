@@ -11,8 +11,9 @@ android {
         applicationId = "com.tabib.herbs"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        // رقم الإصدار يزيد تلقائياً مع كل بناء على GitHub حتى يقبل أندرويد التحديث
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toInt() + 1
+        versionName = "1.1." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
     // واجهة التطبيق تُنسخ من مجلد www المشترك مع نسخة الويب
@@ -22,12 +23,24 @@ android {
         }
     }
 
+    // التوقيع: إذا وُجد مفتاح في متغيرات البيئة (من GitHub Secrets) يُستعمل،
+    // وإلا يُستعمل مفتاح التصحيح (يحفظه سير العمل في الذاكرة المؤقتة ليبقى ثابتاً).
+    val ksFile = System.getenv("TABIB_KEYSTORE_FILE")
+    signingConfigs {
+        if (ksFile != null && file(ksFile).exists()) {
+            create("tabib") {
+                storeFile = file(ksFile)
+                storePassword = System.getenv("TABIB_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("TABIB_KEY_ALIAS")
+                keyPassword = System.getenv("TABIB_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // توقيع بمفتاح التصحيح حتى يكون ملف APK قابلاً للتثبيت مباشرة.
-            // للنشر على Google Play استبدله بمفتاح توقيع خاص بك.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("tabib") ?: signingConfigs.getByName("debug")
         }
     }
 

@@ -9,7 +9,8 @@ const www = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "www",
 const ctx = { globalThis: null };
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ["data/symptoms.js", "data/cultures.js", "data/herbs.js", "data/herbs-extra.js", "data/oils.js", "data/drugs.js", "data/diseases.js", "data/diseases-extra.js", "engine.js"])
+for (const f of ["data/symptoms.js", "data/cultures.js", "data/herbs.js", "data/herbs-extra.js", "data/oils.js", "data/drugs.js", "data/diseases.js", "data/diseases-extra.js", "i18n/ui.js",
+  ...["en", "fr"].flatMap(l => ["meta", "herbs", "oils-drugs", "diseases-1", "diseases-2"].map(p => `i18n/${l}-${p}.js`)), "engine.js"])
   vm.runInContext(fs.readFileSync(path.join(www, f), "utf8"), ctx, { filename: f });
 const { DB, Engine } = ctx;
 const { idx } = Engine;
@@ -35,6 +36,36 @@ DB.cultures.forEach(c => c.famous.forEach(h => idx.herb[h] || idx.oil[h] || erro
 DB.redFlags.forEach(r => [...r.any, ...(r.with || [])].forEach(s => idx.symptom[s] || errors.push(`عرض غير معروف ${s} في قاعدة خطر`)));
 const unused = DB.symptoms.filter(s => !usedSym.has(s.id)).map(s => s.id);
 if (unused.length) console.log("أعراض غير مستعملة في أي مرض (مسموح بها للتنبيهات):", unused.join(", "));
+
+// اكتمال الترجمات (إنجليزي + فرنسي)
+const { I18N } = ctx;
+const arUi = Object.keys(I18N.ar.ui);
+for (const lang of ["en", "fr"]) {
+  const L = I18N[lang];
+  arUi.forEach(k => L.ui[k] == null && errors.push(`[${lang}] نص واجهة ناقص: ${k}`));
+  const need = (kind, list, fields) => list.forEach(x => {
+    const t = L[kind] && L[kind][x.id];
+    if (!t) return errors.push(`[${lang}] ترجمة ناقصة ${kind}: ${x.id}`);
+    if (typeof t === "string") return;
+    fields.forEach(f => (t[f] == null || t[f] === "") && errors.push(`[${lang}] ${kind}.${x.id}.${f} ناقص`));
+  });
+  need("symptoms", DB.symptoms, []);
+  need("groups", DB.symptomGroups, []);
+  need("categories", DB.categories, []);
+  need("cultures", DB.cultures, ["name", "region", "desc", "principles"]);
+  need("herbs", DB.herbs, ["name", "part", "uses", "prep", "dose", "kids", "caution"]);
+  need("oils", DB.oils, ["name", "uses", "how", "dilution", "caution"]);
+  need("drugs", DB.drugs, ["name", "cls", "use", "adult", "max", "child", "caution"]);
+  need("diseases", DB.diseases, ["name", "desc", "causes", "tx", "trad", "life", "doc"]);
+  DB.diseases.forEach(d => {
+    const t = L.diseases[d.id]; if (!t) return;
+    if ((t.tx || []).length !== d.tx.length) errors.push(`[${lang}] ${d.id}: عدد خطوات العلاج ${t.tx.length} ≠ ${d.tx.length}`);
+    if ((t.trad || []).length !== d.trad.length) errors.push(`[${lang}] ${d.id}: عدد الوصفات التقليدية ${t.trad.length} ≠ ${d.trad.length}`);
+  });
+  DB.cultures.forEach(c => L.cultures[c.id] && L.cultures[c.id].principles.length !== c.principles.length && errors.push(`[${lang}] ${c.id}: عدد المبادئ`));
+  if ((L.redFlags || []).length !== DB.redFlags.length) errors.push(`[${lang}] علامات الخطر ${L.redFlags.length} ≠ ${DB.redFlags.length}`);
+  if ((L.oilRules || []).length !== DB.oilRules.length) errors.push(`[${lang}] قواعد الزيوت`);
+}
 
 if (errors.length) { console.error("❌ أخطاء البيانات:\n" + errors.join("\n")); process.exit(1); }
 
@@ -85,6 +116,9 @@ assert.ok(sum >= 97 && sum <= 103, "مجموع النسب " + sum);
 // البحث العربي مع التطبيع
 assert.ok(Engine.search("زنجبيل").some(x => x.item.id === "ginger"));
 assert.ok(Engine.search("السكرى").some(x => x.item.id === "diabetes"), "تطبيع الياء/الألف المقصورة");
+assert.ok(Engine.search("ginger").some(x => x.item.id === "ginger"), "بحث إنجليزي");
+assert.ok(Engine.search("fievre").some(x => x.item.id === "fever"), "بحث فرنسي دون أكسنت");
+assert.ok(Engine.filterSymptoms("headache").some(s => s.id === "headache"), "تصفية الأعراض بالإنجليزية");
 
 console.log(`\nالأمراض ${DB.diseases.length} | الأعراض ${DB.symptoms.length} | الأعشاب ${DB.herbs.length} | الزيوت ${DB.oils.length} | الأدوية ${DB.drugs.length} | الثقافات ${DB.cultures.length}`);
 if (fail) { console.error(`❌ ${fail} سيناريو فشل`); process.exit(1); }

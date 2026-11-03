@@ -1,6 +1,6 @@
-/* واجهة التطبيق: التوجيه والصفحات */
+/* واجهة التطبيق: التوجيه والصفحات — ثلاث لغات (ar / en / fr) */
 (function () {
-  const { idx, analyze, search, filterSymptoms, AGE_LABEL, herbToDiseases, oilToDiseases } = Engine;
+  const { idx, analyze, search, filterSymptoms, herbToDiseases, oilToDiseases } = Engine;
   const $view = document.getElementById("view");
   const $title = document.getElementById("pageTitle");
   const $back = document.getElementById("backBtn");
@@ -11,35 +11,86 @@
     set(k, v) { try { localStorage.setItem("tabib:" + k, JSON.stringify(v)); } catch (e) {} }
   };
 
+  /* ---------- اللغة ---------- */
+  const LANGS = ["ar", "fr", "en"];
+  function detectLang() {
+    const saved = store.get("lang", "");
+    if (LANGS.includes(saved)) return saved;
+    const nav = (navigator.language || "ar").slice(0, 2).toLowerCase();
+    return LANGS.includes(nav) ? nav : "ar";
+  }
+  let LANG = detectLang();
+  const UI = () => I18N[LANG].ui;
+  function t(key, vars) {
+    let s = (I18N[LANG].ui[key] != null ? I18N[LANG].ui[key] : I18N.ar.ui[key]);
+    if (s == null) return key;
+    if (vars && typeof s === "string") for (const k in vars) s = s.split("{" + k + "}").join(vars[k]);
+    return s;
+  }
+  // ترجمة حقل من عنصر بيانات، مع الرجوع للعربية إن لم تتوفر الترجمة
+  function tr(kind, item, field) {
+    const arField = field === "name" ? "ar" : field;
+    if (LANG === "ar" || !item) return item ? item[arField] : "";
+    const d = I18N[LANG][kind] && I18N[LANG][kind][item.id];
+    if (d == null) return item[arField];
+    if (typeof d === "string") return field === "name" ? d : item[arField];
+    return d[field] != null ? d[field] : item[arField];
+  }
+  const nm = (kind, item) => tr(kind, item, "name");
+  const shortName = (kind, item) => (LANG === "ar" ? item.ar.split(" (")[0] : nm(kind, item));
+  const symName = id => nm("symptoms", idx.symptom[id]);
+  const catName = id => nm("categories", idx.category[id]);
+  const groupName = id => nm("groups", idx.group[id]);
+  const cultName = id => (idx.culture[id] ? idx.culture[id].flag + " " + nm("cultures", idx.culture[id]) : id);
+  const tradText = (d, i) => {
+    if (LANG === "ar") return d.trad[i][1];
+    const x = I18N[LANG].diseases && I18N[LANG].diseases[d.id];
+    return (x && x.trad && x.trad[i]) || d.trad[i][1];
+  };
+  const oilRules = () => (LANG !== "ar" && I18N[LANG].oilRules) || DB.oilRules;
+  const flagMsg = f => (f.key ? t(f.key) : (LANG !== "ar" && I18N[LANG].redFlags && I18N[LANG].redFlags[f.idx]) || f.msg);
+  const BACK = () => (UI().dir === "rtl" ? "→" : "←");
+  const CHEV = () => (UI().dir === "rtl" ? "‹" : "›");
+
+  function applyLang() {
+    const html = document.documentElement;
+    html.lang = LANG;
+    html.dir = UI().dir;
+    $back.textContent = BACK();
+    const labels = { home: "nav_home", check: "nav_check", diseases: "nav_diseases", herbs: "nav_herbs", more: "nav_more" };
+    document.querySelectorAll("#nav a").forEach(a => (a.querySelector("b").textContent = t(labels[a.dataset.tab])));
+    document.getElementById("langBtn").textContent = { ar: "ع", en: "EN", fr: "FR" }[LANG];
+    document.title = t("app_name");
+  }
+  function setLang(l) { LANG = l; store.set("lang", l); applyLang(); route(); }
+
   const state = {
     check: Object.assign({ age: "", unit: "y", sex: "", pregnant: false, duration: "", symptoms: [] }, store.get("check", {})),
     favs: store.get("favs", []),
-    herbTab: "herbs",
     herbCult: "",
-    diseaseCat: "",
     symQuery: ""
   };
   const saveCheck = () => store.set("check", state.check);
 
   /* ---------- أدوات ---------- */
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const SEV = { 1: "خفيف", 2: "متوسط", 3: "يحتاج طبيباً", 4: "طارئ" };
-  const PREG = { ok: ["آمن بكميات الطعام", "sev1"], caution: ["بحذر في الحمل", "sev2"], avoid: ["يُتجنب في الحمل", "sev3"] };
-  const sevBadge = s => `<span class="badge sev${s}">${SEV[s]}</span>`;
-  const cultName = id => (idx.culture[id] ? idx.culture[id].flag + " " + idx.culture[id].ar : id);
+  const sevBadge = s => `<span class="badge sev${s}">${t("sev" + s)}</span>`;
+  const PREG_CLS = { ok: "sev1", caution: "sev2", avoid: "sev3" };
   const isFav = key => state.favs.includes(key);
-  function toast(msg) { const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200); }
+  function toast(msg) { const el = document.getElementById("toast"); el.textContent = msg; el.classList.add("show"); clearTimeout(el._h); el._h = setTimeout(() => el.classList.remove("show"), 2200); }
   function ageYears() {
     const a = parseFloat(state.check.age);
     if (isNaN(a)) return null;
     return state.check.unit === "m" ? a / 12 : a;
   }
-  function favBtn(key) { return `<button class="fav ${isFav(key) ? "on" : ""}" data-fav="${key}" aria-label="المفضلة">${isFav(key) ? "★" : "☆"}</button>`; }
-  const disclaimer = `<p class="disclaimer">⚕️ هذه المعلومات تثقيفية ولا تُغني عن استشارة الطبيب أو الصيدلي. لا توقف أي دواء موصوف لتعتمد على الأعشاب.</p>`;
+  const favBtn = key => `<button class="fav ${isFav(key) ? "on" : ""}" data-fav="${key}" aria-label="${t("fav_label")}">${isFav(key) ? "★" : "☆"}</button>`;
+  const disclaimer = () => `<p class="disclaimer">${t("disclaimer")}</p>`;
+  const item = (href, ic, title, sub) => `<a class="item" href="${href}"><span class="ic">${ic}</span><span class="body"><b>${esc(title)}</b><small>${esc(sub)}</small></span><span class="chev">${CHEV()}</span></a>`;
+  const ulist = arr => `<ul class="ul-pad">${arr.map(r => `<li>${esc(r)}</li>`).join("")}</ul>`;
 
   function render(html, title, showBack) {
     $view.innerHTML = html;
-    $title.textContent = title || "طبيب الأعشاب";
+    $title.textContent = title || t("app_name");
     $back.hidden = !showBack;
     window.scrollTo(0, 0);
   }
@@ -49,27 +100,29 @@
     const n = { d: DB.diseases.length, h: DB.herbs.filter(h => !h.danger).length, o: DB.oils.length, c: DB.cultures.length, s: DB.symptoms.length };
     render(`
       <div class="card hero">
-        <h1>🌿 طبيب الأعشاب</h1>
-        <p>موسوعة الطب والأعشاب والزيوت من ${n.c} ثقافات حول العالم، مع محلل أعراض يرجّح المرض المحتمل ويقترح الحلول.</p>
-        <a class="btn block" href="#/check" style="margin-top:8px;color:var(--primary)">🩺 ابدأ فحص الأعراض</a>
+        <h1>🌿 ${t("app_name")}</h1>
+        <p>${t("home_intro", { c: n.c })}</p>
+        <a class="btn block" href="#/check" style="margin-top:8px;color:var(--primary)">${t("home_start")}</a>
       </div>
+      <div class="seg" id="langSeg" style="margin-bottom:12px">${LANGS.map(l => `<button data-l="${l}" class="${l === LANG ? "on" : ""}">${I18N[l].ui.lang_name}</button>`).join("")}</div>
       <form id="homeSearch" class="card tight" role="search">
-        <input type="search" id="homeQ" placeholder="ابحث عن مرض، عشبة، زيت، دواء أو عرض…" aria-label="بحث">
+        <input type="search" id="homeQ" placeholder="${t("home_search_ph")}" aria-label="${t("search_title")}">
       </form>
       <div class="grid">
-        <a class="tile" href="#/check"><span class="ic">🩺</span><b>محلل الأعراض</b><small>${n.s} عرضاً — أدخل أعراضك وعمرك</small></a>
-        <a class="tile" href="#/diseases"><span class="ic">📖</span><b>الأمراض</b><small>${n.d} مرضاً بأعراضها وعلاجها</small></a>
-        <a class="tile" href="#/herbs"><span class="ic">🌿</span><b>الأعشاب الطبية</b><small>${n.h} عشبة بجرعاتها وتحذيراتها</small></a>
-        <a class="tile" href="#/herbs/oils"><span class="ic">💧</span><b>الزيوت الطبية</b><small>${n.o} زيتاً عطرياً وناقلاً</small></a>
-        <a class="tile" href="#/cultures"><span class="ic">🌍</span><b>الطب حول العالم</b><small>عربي، مغربي، صيني، هندي…</small></a>
-        <a class="tile" href="#/dose"><span class="ic">🧮</span><b>حاسبة جرعات الأطفال</b><small>باراسيتامول وإيبوبروفين</small></a>
-        <a class="tile" href="#/drugs"><span class="ic">💊</span><b>الأدوية الشائعة</b><small>الجرعات والتحذيرات</small></a>
-        <a class="tile" href="#/danger"><span class="ic">☠️</span><b>أعشاب خطيرة</b><small>نباتات سامة شائعة الاستعمال</small></a>
+        <a class="tile" href="#/check"><span class="ic">🩺</span><b>${t("tile_check")}</b><small>${t("tile_check_sub", { n: n.s })}</small></a>
+        <a class="tile" href="#/diseases"><span class="ic">📖</span><b>${t("tile_diseases")}</b><small>${t("tile_diseases_sub", { n: n.d })}</small></a>
+        <a class="tile" href="#/herbs"><span class="ic">🌿</span><b>${t("tile_herbs")}</b><small>${t("tile_herbs_sub", { n: n.h })}</small></a>
+        <a class="tile" href="#/herbs/oils"><span class="ic">💧</span><b>${t("tile_oils")}</b><small>${t("tile_oils_sub", { n: n.o })}</small></a>
+        <a class="tile" href="#/cultures"><span class="ic">🌍</span><b>${t("tile_cultures")}</b><small>${t("tile_cultures_sub")}</small></a>
+        <a class="tile" href="#/dose"><span class="ic">🧮</span><b>${t("tile_dose")}</b><small>${t("tile_dose_sub")}</small></a>
+        <a class="tile" href="#/drugs"><span class="ic">💊</span><b>${t("tile_drugs")}</b><small>${t("tile_drugs_sub")}</small></a>
+        <a class="tile" href="#/danger"><span class="ic">☠️</span><b>${t("tile_danger")}</b><small>${t("tile_danger_sub")}</small></a>
       </div>
-      <div class="alert warn" style="margin-top:12px"><b>🚑 في الحالات الطارئة</b>ألم صدر، صعوبة تنفس، ضعف مفاجئ في جانب الجسم، نزيف شديد، أو فقدان وعي: اتصل بالإسعاف فوراً.</div>
-      ${disclaimer}
-    `, "طبيب الأعشاب");
+      <div class="alert warn" style="margin-top:12px"><b>${t("emergency_title")}</b>${t("emergency_text")}</div>
+      ${disclaimer()}
+    `, t("app_name"));
     document.getElementById("homeSearch").onsubmit = e => { e.preventDefault(); location.hash = "#/search/" + encodeURIComponent(document.getElementById("homeQ").value); };
+    document.getElementById("langSeg").onclick = e => { const b = e.target.closest("[data-l]"); if (b) setLang(b.dataset.l); };
   }
 
   /* ---------- محلل الأعراض ---------- */
@@ -77,43 +130,41 @@
     const c = state.check;
     render(`
       <div class="card">
-        <h1>🩺 محلل الأعراض</h1>
-        <p class="muted">أدخل عمرك وجنسك واختر كل الأعراض التي تشعر بها، وسيرجّح التطبيق الأمراض المحتملة مرتبة حسب الاحتمال مع الحلول.</p>
+        <h1>${t("check_title")}</h1>
+        <p class="muted">${t("check_intro")}</p>
         <div class="row">
-          <div><label class="fld" for="age">العمر</label><input type="number" id="age" min="0" max="120" inputmode="decimal" value="${esc(c.age)}" placeholder="مثال: 35"></div>
-          <div><label class="fld" for="unit">الوحدة</label><select id="unit"><option value="y" ${c.unit === "y" ? "selected" : ""}>سنوات</option><option value="m" ${c.unit === "m" ? "selected" : ""}>أشهر (للرضّع)</option></select></div>
+          <div><label class="fld" for="age">${t("age")}</label><input type="number" id="age" min="0" max="120" inputmode="decimal" value="${esc(c.age)}" placeholder="${t("age_ph")}"></div>
+          <div><label class="fld" for="unit">${t("unit")}</label><select id="unit"><option value="y" ${c.unit === "y" ? "selected" : ""}>${t("years")}</option><option value="m" ${c.unit === "m" ? "selected" : ""}>${t("months")}</option></select></div>
         </div>
-        <label class="fld">الجنس</label>
+        <label class="fld">${t("sex")}</label>
         <div class="seg" id="sexSeg">
-          <button type="button" data-v="m" class="${c.sex === "m" ? "on" : ""}">ذكر</button>
-          <button type="button" data-v="f" class="${c.sex === "f" ? "on" : ""}">أنثى</button>
+          <button type="button" data-v="m" class="${c.sex === "m" ? "on" : ""}">${t("male")}</button>
+          <button type="button" data-v="f" class="${c.sex === "f" ? "on" : ""}">${t("female")}</button>
         </div>
-        <label class="check" id="pregWrap" ${c.sex === "f" ? "" : "hidden"}><input type="checkbox" id="preg" ${c.pregnant ? "checked" : ""}> حامل أو مرضع</label>
-        <label class="fld">منذ متى بدأت الأعراض؟</label>
+        <label class="check" id="pregWrap" ${c.sex === "f" ? "" : "hidden"}><input type="checkbox" id="preg" ${c.pregnant ? "checked" : ""}> ${t("pregnant")}</label>
+        <label class="fld">${t("duration_q")}</label>
         <div class="seg" id="durSeg">
-          <button type="button" data-v="acute" class="${c.duration === "acute" ? "on" : ""}">أقل من أسبوع</button>
-          <button type="button" data-v="sub" class="${c.duration === "sub" ? "on" : ""}">1–4 أسابيع</button>
-          <button type="button" data-v="chronic" class="${c.duration === "chronic" ? "on" : ""}">أكثر من شهر</button>
+          <button type="button" data-v="acute" class="${c.duration === "acute" ? "on" : ""}">${t("dur_acute")}</button>
+          <button type="button" data-v="sub" class="${c.duration === "sub" ? "on" : ""}">${t("dur_sub")}</button>
+          <button type="button" data-v="chronic" class="${c.duration === "chronic" ? "on" : ""}">${t("dur_chronic")}</button>
         </div>
       </div>
-
       <div class="card">
-        <h2 style="margin-top:0">الأعراض المختارة <span class="count" id="selCount">${c.symptoms.length}</span></h2>
+        <h2 style="margin-top:0">${t("selected_symptoms")} <span class="count" id="selCount">${c.symptoms.length}</span></h2>
         <div class="chips" id="selChips"></div>
-        <label class="fld" for="symQ">ابحث عن عرض</label>
-        <input type="search" id="symQ" placeholder="مثال: صداع، كحة، حرقة…" value="${esc(state.symQuery)}">
+        <label class="fld" for="symQ">${t("search_symptom")}</label>
+        <input type="search" id="symQ" placeholder="${t("symptom_ph")}" value="${esc(state.symQuery)}">
       </div>
       <div id="symList"></div>
-
       <div class="sticky-action">
         <div class="row">
-          <button class="btn primary" id="analyzeBtn">🔎 تحليل الأعراض</button>
-          <button class="btn" id="clearBtn" style="flex:0 0 auto">مسح</button>
+          <button class="btn primary" id="analyzeBtn">${t("analyze")}</button>
+          <button class="btn" id="clearBtn" style="flex:0 0 auto">${t("clear")}</button>
         </div>
       </div>
       <div id="results"></div>
-      ${disclaimer}
-    `, "فحص الأعراض");
+      ${disclaimer()}
+    `, t("nav_check"));
 
     const age = document.getElementById("age"), unit = document.getElementById("unit");
     age.oninput = () => { c.age = age.value; saveCheck(); };
@@ -146,32 +197,28 @@
     saveCheck(); drawSelected(); drawSymList(true);
   }
   function drawSelected() {
-    const s = state.check.symptoms;
+    const s = state.check.symptoms.filter(id => idx.symptom[id]);
     document.getElementById("selCount").textContent = s.length;
-    document.getElementById("selChips").innerHTML = s.length
-      ? s.map(id => `<button class="chip sel" data-sym="${id}">${esc(idx.symptom[id].ar)}</button>`).join("")
-      : `<span class="muted">لم تختر أي عرض بعد. اختر من القوائم أدناه.</span>`;
-    document.getElementById("selChips").onclick = e => { const b = e.target.closest("[data-sym]"); if (b) toggleSymptom(b.dataset.sym); };
+    const box = document.getElementById("selChips");
+    box.innerHTML = s.length ? s.map(id => `<button class="chip sel" data-sym="${id}">${esc(symName(id))}</button>`).join("") : `<span class="muted">${t("none_selected")}</span>`;
+    box.onclick = e => { const b = e.target.closest("[data-sym]"); if (b) toggleSymptom(b.dataset.sym); };
   }
   function drawSymList(keepOpen) {
     const box = document.getElementById("symList");
     const open = keepOpen ? Array.from(box.querySelectorAll("details[open]")).map(d => d.dataset.g) : [];
     const list = filterSymptoms(state.symQuery);
     const sel = state.check.symptoms;
-    const q = state.symQuery.trim();
-    let html = "";
-    if (q) {
-      html = list.length
-        ? `<div class="card"><div class="chips">${list.map(s => `<button class="chip ${sel.includes(s.id) ? "on" : ""}" data-sym="${s.id}">${esc(s.ar)}</button>`).join("")}</div></div>`
-        : `<div class="empty">لا يوجد عرض مطابق.</div>`;
+    const chip = s => `<button class="chip ${sel.includes(s.id) ? "on" : ""}" data-sym="${s.id}">${esc(symName(s.id))}</button>`;
+    let html;
+    if (state.symQuery.trim()) {
+      html = list.length ? `<div class="card"><div class="chips">${list.map(chip).join("")}</div></div>` : `<div class="empty">${t("no_symptom_match")}</div>`;
     } else {
       html = DB.symptomGroups.map(g => {
         const items = list.filter(s => s.group === g.id);
         const n = items.filter(s => sel.includes(s.id)).length;
         return `<details class="group" data-g="${g.id}" ${open.includes(g.id) ? "open" : ""}>
-          <summary>${g.icon} ${g.ar} ${n ? `<span class="count">${n}</span>` : ""}</summary>
-          <div class="chips">${items.map(s => `<button class="chip ${sel.includes(s.id) ? "on" : ""}" data-sym="${s.id}">${esc(s.ar)}</button>`).join("")}</div>
-        </details>`;
+          <summary>${g.icon} ${esc(groupName(g.id))} ${n ? `<span class="count">${n}</span>` : ""}</summary>
+          <div class="chips">${items.map(chip).join("")}</div></details>`;
       }).join("");
     }
     box.innerHTML = html;
@@ -181,32 +228,31 @@
   function runAnalysis() {
     const c = state.check;
     const out = document.getElementById("results");
-    if (!c.symptoms.length) { toast("اختر عرضاً واحداً على الأقل"); return; }
+    if (!c.symptoms.length) { toast(t("need_symptom")); return; }
     const yrs = ageYears();
     const r = analyze({ symptoms: c.symptoms, ageYears: yrs, sex: c.sex || undefined, duration: c.duration || undefined, pregnant: c.pregnant });
-    let html = `<h2>📋 النتائج</h2>`;
-    if (yrs == null) html += `<div class="alert info">لم تُدخل العمر — تم افتراض شخص بالغ. إدخال العمر يحسّن دقة الترجيح.</div>`;
-    else html += `<p class="muted">الفئة العمرية: ${AGE_LABEL[r.group]}${c.sex ? " — " + (c.sex === "m" ? "ذكر" : "أنثى") : ""}${c.pregnant ? " — حامل/مرضع" : ""}</p>`;
-    r.flags.forEach(f => {
-      html += `<div class="alert ${f.level >= 4 ? "danger" : "warn"}"><b>${f.level >= 4 ? "🚨 علامة خطر" : "⚠️ تنبيه"}</b>${esc(f.msg)}</div>`;
-    });
+    let html = `<h2>${t("results")}</h2>`;
+    if (yrs == null) html += `<div class="alert info">${t("no_age")}</div>`;
+    else html += `<p class="muted">${t("age_group")}: ${t("age_" + r.group)}${c.sex ? " — " + t(c.sex === "m" ? "male" : "female") : ""}${c.pregnant ? " — " + t("pregnant_short") : ""}</p>`;
+    r.flags.forEach(f => { html += `<div class="alert ${f.level >= 4 ? "danger" : "warn"}"><b>${t(f.level >= 4 ? "flag_danger" : "flag_warn")}</b>${esc(flagMsg(f))}</div>`; });
     if (!r.results.length) {
-      html += `<div class="empty">لم نجد مرضاً مطابقاً بشكل كافٍ لهذه الأعراض. أضف أعراضاً أخرى أو استشر الطبيب.</div>`;
+      html += `<div class="empty">${t("no_results")}</div>`;
     } else {
-      html += `<p class="muted small">النسبة تمثل الترجيح النسبي بين الاحتمالات المعروضة وليست تشخيصاً. اضغط على أي مرض لعرض العلاج الكامل.</p>`;
+      html += `<p class="muted small">${t("results_note")}</p>`;
+      const sep = LANG === "ar" ? "، " : ", ";
       r.results.forEach((x, i) => {
         const d = x.d;
-        const matched = x.matched.map(id => idx.symptom[id].ar).join("، ");
-        const missing = x.missing.slice(0, 3).map(id => idx.symptom[id].ar).join("، ");
-        const herbs = (d.herbs || []).slice(0, 4).map(h => idx.herb[h] && idx.herb[h].ar.split(" (")[0]).filter(Boolean).join("، ");
-        const levelTxt = { high: "تطابق قوي", mid: "تطابق متوسط", low: "تطابق ضعيف" }[x.level];
+        const matched = x.matched.map(symName).join(sep);
+        const missing = x.missing.slice(0, 3).map(symName).join(sep);
+        const herbs = (d.herbs || []).slice(0, 4).map(h => idx.herb[h] && shortName("herbs", idx.herb[h])).filter(Boolean).join(sep);
+        const tx = tr("diseases", d, "tx") || [];
         html += `<a class="result" href="#/disease/${d.id}">
-          <div class="top"><span class="rank">${i + 1}</span><span class="name">${esc(d.ar)}</span><span class="pct">${x.likelihood}%</span></div>
+          <div class="top"><span class="rank">${i + 1}</span><span class="name">${esc(nm("diseases", d))}</span><span class="pct">${x.likelihood}%</span></div>
           <div class="bar"><i style="width:${Math.max(4, x.likelihood)}%"></i></div>
-          <div>${sevBadge(d.sev)} <span class="badge" style="background:var(--surface-2)">${levelTxt}</span></div>
-          <div class="why">✔ يتطابق مع: ${esc(matched)}</div>
-          ${missing ? `<div class="why">❔ أعراض مميزة لم تذكرها: ${esc(missing)}</div>` : ""}
-          <div class="quick">💡 ${esc((d.tx || [])[0] || "")}${herbs ? `<br>🌿 ${esc(herbs)}` : ""}</div>
+          <div>${sevBadge(d.sev)} <span class="badge" style="background:var(--surface-2)">${t("match_" + x.level)}</span></div>
+          <div class="why">${t("matches")} ${esc(matched)}</div>
+          ${missing ? `<div class="why">${t("missing")} ${esc(missing)}</div>` : ""}
+          <div class="quick">💡 ${esc(tx[0] || "")}${herbs ? `<br>🌿 ${esc(herbs)}` : ""}</div>
         </a>`;
       });
     }
@@ -216,23 +262,21 @@
 
   /* ---------- الأمراض ---------- */
   function viewDiseases(cat) {
-    state.diseaseCat = cat || "";
-    const list = DB.diseases.filter(d => !state.diseaseCat || d.cat === state.diseaseCat).sort((a, b) => a.ar.localeCompare(b.ar, "ar"));
+    const list = DB.diseases.filter(d => !cat || d.cat === cat).sort((a, b) => nm("diseases", a).localeCompare(nm("diseases", b), LANG));
     render(`
-      <input type="search" id="dq" placeholder="ابحث في الأمراض…" style="margin-bottom:10px">
+      <input type="search" id="dq" placeholder="${t("diseases_search_ph")}" style="margin-bottom:10px">
       <div class="hscroll">
-        <a class="chip ${!state.diseaseCat ? "on" : ""}" href="#/diseases">الكل (${DB.diseases.length})</a>
-        ${DB.categories.map(c => `<a class="chip ${state.diseaseCat === c.id ? "on" : ""}" href="#/diseases/${c.id}">${c.icon} ${c.ar}</a>`).join("")}
+        <a class="chip ${!cat ? "on" : ""}" href="#/diseases">${t("all")} (${DB.diseases.length})</a>
+        ${DB.categories.map(c => `<a class="chip ${cat === c.id ? "on" : ""}" href="#/diseases/${c.id}">${c.icon} ${esc(catName(c.id))} (${DB.diseases.filter(d => d.cat === c.id).length})</a>`).join("")}
       </div>
       <div class="list" id="dlist" style="margin-top:8px"></div>
-    `, "الأمراض");
+    `, t("nav_diseases"));
     const draw = q => {
       const nq = Engine.norm(q);
-      const items = list.filter(d => !nq || Engine.norm(d.ar + " " + d.en).includes(nq));
-      document.getElementById("dlist").innerHTML = items.length ? items.map(d => `
-        <a class="item" href="#/disease/${d.id}"><span class="ic">${idx.category[d.cat].icon}</span>
-          <span class="body"><b>${esc(d.ar)}</b><small>${esc(d.en)} · ${SEV[d.sev]}</small></span><span class="chev">‹</span></a>`).join("")
-        : `<div class="empty">لا نتائج</div>`;
+      const items = list.filter(d => !nq || Engine.norm(d.ar + " " + d.en + " " + nm("diseases", d)).includes(nq));
+      document.getElementById("dlist").innerHTML = items.length
+        ? items.map(d => item(`#/disease/${d.id}`, idx.category[d.cat].icon, nm("diseases", d), (LANG === "ar" ? d.en : catName(d.cat)) + " · " + t("sev" + d.sev))).join("")
+        : `<div class="empty">${t("no_results_short")}</div>`;
     };
     document.getElementById("dq").oninput = e => draw(e.target.value);
     draw("");
@@ -248,60 +292,64 @@
     const herbs = (d.herbs || []).map(h => idx.herb[h]).filter(Boolean);
     const oils = (d.oils || []).map(o => idx.oil[o]).filter(Boolean);
     const drugs = (d.drugs || []).map(x => idx.drug[x]).filter(Boolean);
+    const T = f => tr("diseases", d, f);
+    const life = T("life");
     render(`
-      <div class="title-row"><h1>${esc(d.ar)}</h1>${favBtn("disease:" + d.id)}</div>
-      <p class="latin">${esc(d.en)}</p>
-      <p>${sevBadge(d.sev)} <span class="badge" style="background:var(--surface-2)">${idx.category[d.cat].icon} ${idx.category[d.cat].ar}</span></p>
-      ${d.sev >= 4 ? `<div class="alert danger"><b>🚨 حالة طارئة</b>${esc(d.doc)}</div>` : ""}
-      <div class="section"><h2>📝 نبذة</h2><p>${esc(d.desc)}</p><p class="muted"><b>الأسباب:</b> ${esc(d.causes)}</p></div>
-      <div class="section"><h2>🔍 الأعراض</h2><div class="chips">${syms.map(([sid, w]) => idx.symptom[sid] ? `<span class="chip ${w >= 3 ? "on" : ""}">${esc(idx.symptom[sid].ar)}</span>` : "").join("")}</div>
-        <p class="muted small" style="margin-top:6px">الأعراض الملوّنة هي الأكثر تمييزاً للمرض.</p></div>
-      <div class="section"><h2>🏥 العلاج الطبي</h2><ul>${(d.tx || []).map(t => `<li>${esc(t)}</li>`).join("")}</ul>
-        ${drugs.length ? `<h3>💊 الأدوية المستعملة</h3>${drugs.map(x => `<a class="herb-mini" href="#/drug/${x.id}"><b>${esc(x.ar)} ${x.rx ? '<span class="badge sev3">بوصفة</span>' : ""}</b><small>${esc(x.rx ? "الجرعة يحددها الطبيب" : x.adult)}${child && !x.rx ? " — أطفال: " + esc(x.child) : ""}</small></a>`).join("")}` : ""}
+      <div class="title-row"><h1>${esc(nm("diseases", d))}</h1>${favBtn("disease:" + d.id)}</div>
+      <p class="latin">${esc(LANG === "en" ? (I18N.fr.diseases && I18N.fr.diseases[d.id] && I18N.fr.diseases[d.id].name) || "" : d.en)}</p>
+      <p>${sevBadge(d.sev)} <span class="badge" style="background:var(--surface-2)">${idx.category[d.cat].icon} ${esc(catName(d.cat))}</span></p>
+      ${d.sev >= 4 ? `<div class="alert danger"><b>${t("emergency_case")}</b>${esc(T("doc"))}</div>` : ""}
+      <div class="section"><h2>${t("sec_overview")}</h2><p>${esc(T("desc"))}</p><p class="muted"><b>${t("causes")}</b> ${esc(T("causes"))}</p></div>
+      ${syms.length ? `<div class="section"><h2>${t("sec_symptoms")}</h2><div class="chips">${syms.map(([sid, w]) => idx.symptom[sid] ? `<span class="chip ${w >= 3 ? "on" : ""}">${esc(symName(sid))}</span>` : "").join("")}</div>
+        <p class="muted small" style="margin-top:6px">${t("sym_note")}</p></div>` : ""}
+      <div class="section"><h2>${t("sec_medical")}</h2>${ulist(T("tx") || [])}
+        ${drugs.length ? `<h3>${t("sec_drugs")}</h3>${drugs.map(x => `<a class="herb-mini" href="#/drug/${x.id}"><b>${esc(nm("drugs", x))} ${x.rx ? `<span class="badge sev3">${t("rx")}</span>` : ""}</b><small>${esc(x.rx ? t("rx_dose") : tr("drugs", x, "adult"))}${child && !x.rx ? " — " + t("kids_prefix") + " " + esc(tr("drugs", x, "child")) : ""}</small></a>`).join("")}` : ""}
       </div>
-      ${herbs.length ? `<div class="section"><h2>🌿 الأعشاب المفيدة</h2>
-        ${preg ? `<div class="alert warn">أنتِ حامل/مرضع: الأعشاب المعلَّمة بالأحمر يجب تجنبها.</div>` : ""}
-        ${herbs.map(h => `<a class="herb-mini" href="#/herb/${h.id}"><b>${esc(h.ar)} ${preg && h.preg === "avoid" ? '<span class="badge sev3">تجنّب في الحمل</span>' : ""}</b><small>📏 ${esc(h.dose)}</small>${child ? `<small>👶 ${esc(h.kids)}</small>` : ""}<small>⚠️ ${esc(h.caution)}</small></a>`).join("")}
+      ${herbs.length ? `<div class="section"><h2>${t("sec_herbs")}</h2>
+        ${preg ? `<div class="alert warn">${t("preg_warn")}</div>` : ""}
+        ${herbs.map(h => `<a class="herb-mini" href="#/herb/${h.id}"><b>${esc(nm("herbs", h))} ${preg && h.preg === "avoid" ? `<span class="badge sev3">${t("avoid_preg")}</span>` : ""}</b><small>📏 ${esc(tr("herbs", h, "dose"))}</small>${child ? `<small>👶 ${esc(tr("herbs", h, "kids"))}</small>` : ""}<small>⚠️ ${esc(tr("herbs", h, "caution"))}</small></a>`).join("")}
       </div>` : ""}
-      ${oils.length ? `<div class="section"><h2>💧 الزيوت</h2>
-        ${oils.map(o => `<a class="herb-mini" href="#/oil/${o.id}"><b>${esc(o.ar)}</b><small>🖐️ ${esc(o.how)}</small><small>⚠️ ${esc(o.caution)}</small></a>`).join("")}
+      ${oils.length ? `<div class="section"><h2>${t("sec_oils")}</h2>
+        ${oils.map(o => `<a class="herb-mini" href="#/oil/${o.id}"><b>${esc(nm("oils", o))}</b><small>🖐️ ${esc(tr("oils", o, "how"))}</small><small>⚠️ ${esc(tr("oils", o, "caution"))}</small></a>`).join("")}
       </div>` : ""}
-      ${(d.trad || []).length ? `<div class="section"><h2>🌍 العلاج التقليدي عبر الثقافات</h2>
-        ${d.trad.map(([c, t]) => `<div class="trad"><b>${esc(cultName(c))}:</b> ${esc(t)}</div>`).join("")}</div>` : ""}
-      ${d.life && d.life !== "—" ? `<div class="section"><h2>🥗 نمط الحياة والوقاية</h2><p>${esc(d.life)}</p></div>` : ""}
-      <div class="alert ${d.sev >= 3 ? "danger" : "warn"}"><b>👨‍⚕️ متى تراجع الطبيب؟</b>${esc(d.doc)}</div>
-      ${disclaimer}
-    `, d.ar, true);
+      ${(d.trad || []).length ? `<div class="section"><h2>${t("sec_trad")}</h2>
+        ${d.trad.map(([c], i) => `<div class="trad"><b>${esc(cultName(c))}:</b> ${esc(tradText(d, i))}</div>`).join("")}</div>` : ""}
+      ${life && life !== "—" ? `<div class="section"><h2>${t("sec_life")}</h2><p>${esc(life)}</p></div>` : ""}
+      <div class="alert ${d.sev >= 3 ? "danger" : "warn"}"><b>${t("sec_doctor")}</b>${esc(T("doc"))}</div>
+      ${disclaimer()}
+    `, nm("diseases", d), true);
   }
 
   /* ---------- الأعشاب والزيوت ---------- */
   function viewHerbs(tab) {
-    state.herbTab = tab === "oils" ? "oils" : "herbs";
-    const isOils = state.herbTab === "oils";
+    const isOils = tab === "oils";
+    const kind = isOils ? "oils" : "herbs";
     const source = isOils ? DB.oils : DB.herbs.filter(h => !h.danger);
     const cults = DB.cultures.filter(c => source.some(x => x.cult.includes(c.id)));
     render(`
       <div class="seg" style="margin-bottom:10px">
-        <button onclick="location.hash='#/herbs'" class="${!isOils ? "on" : ""}">🌿 الأعشاب (${DB.herbs.filter(h => !h.danger).length})</button>
-        <button onclick="location.hash='#/herbs/oils'" class="${isOils ? "on" : ""}">💧 الزيوت (${DB.oils.length})</button>
+        <button onclick="location.hash='#/herbs'" class="${!isOils ? "on" : ""}">${t("herbs_tab")} (${DB.herbs.filter(h => !h.danger).length})</button>
+        <button onclick="location.hash='#/herbs/oils'" class="${isOils ? "on" : ""}">${t("oils_tab")} (${DB.oils.length})</button>
       </div>
-      <input type="search" id="hq" placeholder="${isOils ? "ابحث في الزيوت…" : "ابحث بالاسم أو الاستعمال (مثال: سعال)…"}" style="margin-bottom:10px">
+      <input type="search" id="hq" placeholder="${t(isOils ? "oils_search_ph" : "herbs_search_ph")}" style="margin-bottom:10px">
       <div class="hscroll" id="cultChips">
-        <button class="chip ${!state.herbCult ? "on" : ""}" data-c="">كل الثقافات</button>
-        ${cults.map(c => `<button class="chip ${state.herbCult === c.id ? "on" : ""}" data-c="${c.id}">${c.flag} ${c.ar}</button>`).join("")}
+        <button class="chip ${!state.herbCult ? "on" : ""}" data-c="">${t("all_cultures")}</button>
+        ${cults.map(c => `<button class="chip ${state.herbCult === c.id ? "on" : ""}" data-c="${c.id}">${esc(cultName(c.id))}</button>`).join("")}
       </div>
-      ${isOils ? `<details class="group" style="margin-top:8px"><summary>📌 قواعد السلامة في استعمال الزيوت</summary><ul style="padding:0 30px 12px 12px">${DB.oilRules.map(r => `<li>${esc(r)}</li>`).join("")}</ul></details>` : ""}
-      <div class="list" id="hlist" style="margin-top:8px"></div>
-      ${!isOils ? `<a class="item" href="#/danger" style="margin-top:10px;border-color:var(--danger)"><span class="ic">☠️</span><span class="body"><b>أعشاب خطيرة وسامة</b><small>الحرمل، الفليو، الدفلى، الداتورة، السذاب، الحنظل</small></span><span class="chev">‹</span></a>` : ""}
-    `, isOils ? "الزيوت الطبية" : "الأعشاب الطبية");
+      ${isOils ? `<details class="group" style="margin-top:8px"><summary>${t("oil_rules_title")}</summary>${ulist(oilRules())}</details>` : ""}
+      <p class="muted small" id="hcount" style="margin-top:8px"></p>
+      <div class="list" id="hlist"></div>
+      ${!isOils ? `<div style="margin-top:10px">${item("#/danger", "☠️", t("danger_title"), DB.herbs.filter(h => h.danger).map(h => shortName("herbs", h).replace(" ⚠️", "")).join(LANG === "ar" ? "، " : ", "))}</div>` : ""}
+    `, t(isOils ? "oils_title" : "herbs_title"));
     const draw = () => {
       const nq = Engine.norm(document.getElementById("hq").value);
-      const items = source.filter(x => (!state.herbCult || x.cult.includes(state.herbCult)) && (!nq || Engine.norm(x.ar + " " + x.en + " " + (x.lat || "") + " " + x.uses).includes(nq)))
-        .sort((a, b) => a.ar.localeCompare(b.ar, "ar"));
-      document.getElementById("hlist").innerHTML = items.length ? items.map(x => `
-        <a class="item" href="#/${isOils ? "oil" : "herb"}/${x.id}"><span class="ic">${isOils ? (x.type === "essential" ? "💧" : "🫒") : "🌿"}</span>
-          <span class="body"><b>${esc(x.ar)}</b><small>${esc(x.uses)}</small></span><span class="chev">‹</span></a>`).join("")
-        : `<div class="empty">لا نتائج</div>`;
+      const items = source.filter(x => (!state.herbCult || x.cult.includes(state.herbCult)) &&
+        (!nq || Engine.norm([x.ar, x.en, x.lat || "", x.uses, nm(kind, x), tr(kind, x, "uses")].join(" ")).includes(nq)))
+        .sort((a, b) => nm(kind, a).localeCompare(nm(kind, b), LANG));
+      document.getElementById("hcount").textContent = items.length + " / " + source.length;
+      document.getElementById("hlist").innerHTML = items.length
+        ? items.map(x => item(`#/${isOils ? "oil" : "herb"}/${x.id}`, isOils ? (x.type === "essential" ? "💧" : "🫒") : "🌿", nm(kind, x), tr(kind, x, "uses"))).join("")
+        : `<div class="empty">${t("no_results_short")}</div>`;
     };
     document.getElementById("hq").oninput = draw;
     document.getElementById("cultChips").onclick = e => {
@@ -313,163 +361,157 @@
     draw();
   }
 
-  function relatedDiseases(ids) {
-    return (ids || []).map(id => idx.disease[id]).filter(Boolean).map(d => `<a class="chip link" href="#/disease/${d.id}">${esc(d.ar)}</a>`).join("");
-  }
+  const relatedDiseases = ids => (ids || []).map(id => idx.disease[id]).filter(Boolean).map(d => `<a class="chip link" href="#/disease/${d.id}">${esc(nm("diseases", d))}</a>`).join("");
+  const cultChips = ids => ids.map(c => `<a class="chip link" href="#/culture/${c}">${esc(cultName(c))}</a>`).join("");
 
   function viewHerb(id) {
     const h = idx.herb[id];
     if (!h) return notFound();
-    const p = PREG[h.preg] || PREG.caution;
+    const T = f => tr("herbs", h, f);
     render(`
-      <div class="title-row"><h1>${esc(h.ar)}</h1>${favBtn("herb:" + h.id)}</div>
-      <p class="latin">${esc(h.en)} — ${esc(h.lat)}</p>
-      ${h.danger ? `<div class="alert danger"><b>☠️ نبات خطير</b>${esc(h.caution)}</div>` : ""}
-      <p><span class="badge ${p[1]}">🤰 ${p[0]}</span></p>
-      <div class="section"><h2>🌍 الثقافات التي تستعمله</h2><div class="chips">${h.cult.map(c => `<a class="chip link" href="#/culture/${c}">${esc(cultName(c))}</a>`).join("")}</div></div>
-      <div class="section"><h2>🩹 الاستعمالات</h2><p>${esc(h.uses)}</p><p class="muted"><b>الجزء المستعمل:</b> ${esc(h.part)}</p></div>
-      <div class="section"><h2>🍵 طريقة التحضير</h2><p>${esc(h.prep)}</p></div>
-      <div class="section"><h2>📏 الجرعة</h2><dl class="kv"><dt>البالغون</dt><dd>${esc(h.dose)}</dd><dt>الأطفال</dt><dd>${esc(h.kids)}</dd></dl></div>
-      <div class="alert warn"><b>⚠️ موانع الاستعمال والتداخلات</b>${esc(h.caution)}</div>
-      ${herbToDiseases[h.id] ? `<div class="section"><h2>📖 يُستعمل في</h2><div class="chips">${relatedDiseases(herbToDiseases[h.id])}</div></div>` : ""}
-      ${disclaimer}
-    `, h.ar.split(" (")[0], true);
+      <div class="title-row"><h1>${esc(nm("herbs", h))}</h1>${favBtn("herb:" + h.id)}</div>
+      <p class="latin">${esc(LANG === "ar" ? h.en + " — " : "")}${esc(h.lat)}</p>
+      ${h.danger ? `<div class="alert danger"><b>${t("dangerous_plant")}</b>${esc(T("caution"))}</div>` : ""}
+      <p><span class="badge ${PREG_CLS[h.preg] || "sev2"}">🤰 ${t("preg_" + (h.preg || "caution"))}</span></p>
+      <div class="section"><h2>${t("cultures_used")}</h2><div class="chips">${cultChips(h.cult)}</div></div>
+      <div class="section"><h2>${t("uses")}</h2><p>${esc(T("uses"))}</p><p class="muted"><b>${t("part")}</b> ${esc(T("part"))}</p></div>
+      <div class="section"><h2>${t("prep")}</h2><p>${esc(T("prep"))}</p></div>
+      <div class="section"><h2>${t("dose")}</h2><dl class="kv"><dt>${t("adults")}</dt><dd>${esc(T("dose"))}</dd><dt>${t("children")}</dt><dd>${esc(T("kids"))}</dd></dl></div>
+      <div class="alert warn"><b>${t("cautions_title")}</b>${esc(T("caution"))}</div>
+      ${herbToDiseases[h.id] ? `<div class="section"><h2>${t("used_in")}</h2><div class="chips">${relatedDiseases(herbToDiseases[h.id])}</div></div>` : ""}
+      ${disclaimer()}
+    `, shortName("herbs", h), true);
   }
 
   function viewOil(id) {
     const o = idx.oil[id];
     if (!o) return notFound();
+    const T = f => tr("oils", o, f);
     render(`
-      <div class="title-row"><h1>${esc(o.ar)}</h1>${favBtn("oil:" + o.id)}</div>
-      <p class="latin">${esc(o.en)}</p>
-      <p><span class="badge ${o.type === "essential" ? "sev2" : "sev1"}">${o.type === "essential" ? "زيت عطري مركّز — يُخفّف ولا يُشرب" : "زيت ناقل / ثابت"}</span></p>
-      <div class="section"><h2>🌍 الثقافات</h2><div class="chips">${o.cult.map(c => `<a class="chip link" href="#/culture/${c}">${esc(cultName(c))}</a>`).join("")}</div></div>
-      <div class="section"><h2>🩹 الاستعمالات</h2><p>${esc(o.uses)}</p></div>
-      <div class="section"><h2>🖐️ طريقة الاستعمال</h2><p>${esc(o.how)}</p><p class="muted"><b>نسبة التخفيف:</b> ${esc(o.dilution)}</p></div>
-      <div class="alert warn"><b>⚠️ تحذيرات</b>${esc(o.caution)}</div>
-      ${oilToDiseases[o.id] ? `<div class="section"><h2>📖 يُستعمل في</h2><div class="chips">${relatedDiseases(oilToDiseases[o.id])}</div></div>` : ""}
-      ${o.type === "essential" ? `<details class="group"><summary>📌 قواعد سلامة الزيوت العطرية</summary><ul style="padding:0 30px 12px 12px">${DB.oilRules.map(r => `<li>${esc(r)}</li>`).join("")}</ul></details>` : ""}
-      ${disclaimer}
-    `, o.ar, true);
+      <div class="title-row"><h1>${esc(nm("oils", o))}</h1>${favBtn("oil:" + o.id)}</div>
+      ${LANG === "ar" ? `<p class="latin">${esc(o.en)}</p>` : ""}
+      <p><span class="badge ${o.type === "essential" ? "sev2" : "sev1"}">${t(o.type === "essential" ? "oil_essential" : "oil_carrier")}</span></p>
+      <div class="section"><h2>${t("cultures_short")}</h2><div class="chips">${cultChips(o.cult)}</div></div>
+      <div class="section"><h2>${t("uses")}</h2><p>${esc(T("uses"))}</p></div>
+      <div class="section"><h2>${t("how_use")}</h2><p>${esc(T("how"))}</p><p class="muted"><b>${t("dilution")}</b> ${esc(T("dilution"))}</p></div>
+      <div class="alert warn"><b>${t("warnings")}</b>${esc(T("caution"))}</div>
+      ${oilToDiseases[o.id] ? `<div class="section"><h2>${t("used_in")}</h2><div class="chips">${relatedDiseases(oilToDiseases[o.id])}</div></div>` : ""}
+      ${o.type === "essential" ? `<details class="group"><summary>${t("oil_rules_short")}</summary>${ulist(oilRules())}</details>` : ""}
+      ${disclaimer()}
+    `, nm("oils", o), true);
   }
 
   function viewDanger() {
     const list = DB.herbs.filter(h => h.danger);
     render(`
-      <div class="alert danger"><b>☠️ تحذير</b>هذه النباتات شائعة في الطب الشعبي لكنها تسببت في حالات تسمم ووفيات. عند الاشتباه بتسمم اتصل بالإسعاف أو مركز مكافحة السموم فوراً.</div>
-      <div class="list">${list.map(h => `<a class="item" href="#/herb/${h.id}"><span class="ic">☠️</span><span class="body"><b>${esc(h.ar)}</b><small>${esc(h.caution)}</small></span><span class="chev">‹</span></a>`).join("")}</div>
-      <div class="section" style="margin-top:12px"><h2>⚠️ قواعد عامة لسلامة الأعشاب</h2><ul>
-        <li>«طبيعي» لا يعني «آمن» — كثير من السموم القوية نباتية.</li>
-        <li>أخبر طبيبك بكل الأعشاب التي تتناولها، خاصة مع أدوية السيولة والسكر والضغط والقلب ومضادات الاكتئاب وحبوب منع الحمل.</li>
-        <li>الحامل والمرضع والأطفال وكبار السن ومرضى الكبد والكلى أكثر عرضة للأضرار.</li>
-        <li>اشترِ من مصدر موثوق؛ الغش والتلوث بالمعادن الثقيلة والمبيدات شائع.</li>
-        <li>أوقف الأعشاب قبل أي عملية جراحية بأسبوعين.</li>
-        <li>توقف فوراً عند ظهور طفح أو اصفرار أو بول داكن أو ألم بطن.</li>
-      </ul></div>
-    `, "أعشاب خطيرة", true);
+      <div class="alert danger"><b>${t("danger_alert_title")}</b>${t("danger_alert")}</div>
+      <div class="list">${list.map(h => item(`#/herb/${h.id}`, "☠️", nm("herbs", h), tr("herbs", h, "caution"))).join("")}</div>
+      <div class="section" style="margin-top:12px"><h2>${t("herb_safety_title")}</h2>${ulist(t("herb_safety"))}</div>
+    `, t("tile_danger"), true);
   }
 
   /* ---------- الأدوية ---------- */
   function viewDrugs() {
     render(`
-      <div class="alert info"><b>💊 الأدوية الحديثة الشائعة</b>الأسماء العلمية العامة. الأدوية المعلَّمة «بوصفة» لا تُؤخذ دون طبيب.</div>
-      <div class="list">${DB.drugs.map(d => `<a class="item" href="#/drug/${d.id}"><span class="ic">💊</span><span class="body"><b>${esc(d.ar)}</b><small>${esc(d.cls)}${d.rx ? " · بوصفة طبية" : ""}</small></span><span class="chev">‹</span></a>`).join("")}</div>
-    `, "الأدوية", true);
+      <div class="alert info"><b>${t("drugs_intro_title")}</b>${t("drugs_intro")}</div>
+      <div class="list">${DB.drugs.map(d => item(`#/drug/${d.id}`, "💊", nm("drugs", d), tr("drugs", d, "cls") + (d.rx ? t("rx_tag") : ""))).join("")}</div>
+    `, t("drugs_page"), true);
   }
   function viewDrug(id) {
     const d = idx.drug[id];
     if (!d) return notFound();
+    const T = f => tr("drugs", d, f);
     const used = DB.diseases.filter(x => (x.drugs || []).includes(d.id)).map(x => x.id);
     render(`
-      <div class="title-row"><h1>${esc(d.ar)}</h1>${favBtn("drug:" + d.id)}</div>
-      <p class="latin">${esc(d.en)}</p>
-      <p><span class="badge" style="background:var(--surface-2)">${esc(d.cls)}</span> ${d.rx ? '<span class="badge sev3">بوصفة طبية فقط</span>' : '<span class="badge sev1">دون وصفة</span>'}</p>
-      <div class="section"><h2>🩹 الاستعمال</h2><p>${esc(d.use)}</p></div>
-      <div class="section"><h2>📏 الجرعة</h2><dl class="kv"><dt>البالغون</dt><dd>${esc(d.adult)}</dd><dt>الحد الأقصى</dt><dd>${esc(d.max)}</dd><dt>الأطفال</dt><dd>${esc(d.child)}</dd></dl>
-        ${["paracetamol", "ibuprofen"].includes(d.id) ? `<a class="btn block" href="#/dose" style="margin-top:10px">🧮 احسب جرعة الطفل حسب الوزن</a>` : ""}</div>
-      <div class="alert warn"><b>⚠️ تحذيرات</b>${esc(d.caution)}</div>
-      ${used.length ? `<div class="section"><h2>📖 يُستعمل في</h2><div class="chips">${relatedDiseases(used)}</div></div>` : ""}
-      ${disclaimer}
-    `, d.ar.split(" (")[0], true);
+      <div class="title-row"><h1>${esc(nm("drugs", d))}</h1>${favBtn("drug:" + d.id)}</div>
+      ${LANG === "ar" ? `<p class="latin">${esc(d.en)}</p>` : ""}
+      <p><span class="badge" style="background:var(--surface-2)">${esc(T("cls"))}</span> <span class="badge ${d.rx ? "sev3" : "sev1"}">${t(d.rx ? "rx_only" : "otc")}</span></p>
+      <div class="section"><h2>${t("use")}</h2><p>${esc(T("use"))}</p></div>
+      <div class="section"><h2>${t("dose")}</h2><dl class="kv"><dt>${t("adults")}</dt><dd>${esc(T("adult"))}</dd><dt>${t("max")}</dt><dd>${esc(T("max"))}</dd><dt>${t("children")}</dt><dd>${esc(T("child"))}</dd></dl>
+        ${["paracetamol", "ibuprofen"].includes(d.id) ? `<a class="btn block" href="#/dose" style="margin-top:10px">${t("calc_btn")}</a>` : ""}</div>
+      <div class="alert warn"><b>${t("warnings")}</b>${esc(T("caution"))}</div>
+      ${used.length ? `<div class="section"><h2>${t("used_in")}</h2><div class="chips">${relatedDiseases(used)}</div></div>` : ""}
+      ${disclaimer()}
+    `, shortName("drugs", d), true);
   }
 
   /* ---------- الثقافات ---------- */
   function viewCultures() {
     render(`
-      <p class="muted">أنظمة الطب التقليدي الكبرى في العالم ومبادئها وأشهر نباتاتها.</p>
-      <div class="list">${DB.cultures.map(c => `<a class="item" href="#/culture/${c.id}"><span class="ic">${c.flag}</span><span class="body"><b>${esc(c.ar)}</b><small>${esc(c.region)}</small></span><span class="chev">‹</span></a>`).join("")}</div>
-    `, "الطب حول العالم", true);
+      <p class="muted">${t("cultures_intro")}</p>
+      <div class="list">${DB.cultures.map(c => item(`#/culture/${c.id}`, c.flag, nm("cultures", c), tr("cultures", c, "region"))).join("")}</div>
+    `, t("cultures_page"), true);
   }
   function viewCulture(id) {
     const c = idx.culture[id];
     if (!c) return notFound();
     const herbs = DB.herbs.filter(h => h.cult.includes(c.id));
     const oils = DB.oils.filter(o => o.cult.includes(c.id));
-    const dz = DB.diseases.filter(d => (d.trad || []).some(t => t[0] === c.id));
+    const dz = DB.diseases.filter(d => (d.trad || []).some(x => x[0] === c.id));
     render(`
-      <h1>${c.flag} ${esc(c.ar)}</h1>
-      <p class="muted">📍 ${esc(c.region)}</p>
-      <div class="section"><h2>📜 نبذة</h2><p>${esc(c.desc)}</p></div>
-      <div class="section"><h2>⚖️ المبادئ</h2><ul>${c.principles.map(p => `<li>${esc(p)}</li>`).join("")}</ul></div>
-      <div class="section"><h2>🌿 أعشابه (${herbs.length})</h2><div class="chips">${herbs.map(h => `<a class="chip ${h.danger ? "danger" : "link"}" href="#/herb/${h.id}">${esc(h.ar.split(" (")[0])}</a>`).join("")}</div></div>
-      ${oils.length ? `<div class="section"><h2>💧 زيوته (${oils.length})</h2><div class="chips">${oils.map(o => `<a class="chip link" href="#/oil/${o.id}">${esc(o.ar)}</a>`).join("")}</div></div>` : ""}
-      ${dz.length ? `<div class="section"><h2>📖 وصفاته للأمراض</h2>${dz.map(d => d.trad.filter(t => t[0] === c.id).map(t => `<a class="herb-mini" href="#/disease/${d.id}"><b>${esc(d.ar)}</b><small>${esc(t[1])}</small></a>`).join("")).join("")}</div>` : ""}
-      ${disclaimer}
-    `, c.ar, true);
+      <h1>${c.flag} ${esc(nm("cultures", c))}</h1>
+      <p class="muted">📍 ${esc(tr("cultures", c, "region"))}</p>
+      <div class="section"><h2>${t("history")}</h2><p>${esc(tr("cultures", c, "desc"))}</p></div>
+      <div class="section"><h2>${t("principles")}</h2>${ulist(tr("cultures", c, "principles"))}</div>
+      <div class="section"><h2>${t("its_herbs")} (${herbs.length})</h2><div class="chips">${herbs.map(h => `<a class="chip ${h.danger ? "danger" : "link"}" href="#/herb/${h.id}">${esc(shortName("herbs", h))}</a>`).join("")}</div></div>
+      ${oils.length ? `<div class="section"><h2>${t("its_oils")} (${oils.length})</h2><div class="chips">${oils.map(o => `<a class="chip link" href="#/oil/${o.id}">${esc(nm("oils", o))}</a>`).join("")}</div></div>` : ""}
+      ${dz.length ? `<div class="section"><h2>${t("its_recipes")}</h2>${dz.map(d => d.trad.map((x, i) => x[0] === c.id ? `<a class="herb-mini" href="#/disease/${d.id}"><b>${esc(nm("diseases", d))}</b><small>${esc(tradText(d, i))}</small></a>` : "").join("")).join("")}</div>` : ""}
+      ${disclaimer()}
+    `, nm("cultures", c), true);
   }
 
   /* ---------- حاسبة الجرعات ---------- */
   const SYRUPS = {
-    paracetamol: { name: "باراسيتامول", lo: 10, hi: 15, every: "كل 4–6 ساعات", maxDay: 60, maxDose: 1000, perDay: 4, conc: [[120, 5, "120 ملغ / 5 مل (شراب الرضع والأطفال)"], [160, 5, "160 ملغ / 5 مل"], [250, 5, "250 ملغ / 5 مل (للأطفال الأكبر)"], [100, 1, "100 ملغ / 1 مل (نقط)"]] },
-    ibuprofen: { name: "إيبوبروفين", lo: 5, hi: 10, every: "كل 6–8 ساعات", maxDay: 40, maxDose: 400, perDay: 3, conc: [[100, 5, "100 ملغ / 5 مل"], [200, 5, "200 ملغ / 5 مل (فورت)"], [40, 1, "40 ملغ / 1 مل (نقط)"]] }
+    paracetamol: { nameKey: "para_name", lo: 10, hi: 15, everyKey: "every_para", maxDay: 60, maxDose: 1000, perDay: 4, dayCap: 4000, conc: [[120, 5, "conc_p120"], [160, 5, "conc_p160"], [250, 5, "conc_p250"], [100, 1, "conc_p100d"]] },
+    ibuprofen: { nameKey: "ibu_name", lo: 5, hi: 10, everyKey: "every_ibu", maxDay: 40, maxDose: 400, perDay: 3, dayCap: 1200, conc: [[100, 5, "conc_i100"], [200, 5, "conc_i200"], [40, 1, "conc_i40d"]] }
   };
   function viewDose() {
     const st = store.get("dose", { drug: "paracetamol", w: "", c: 0, ageM: "" });
     render(`
       <div class="card">
-        <h1>🧮 حاسبة جرعات الأطفال</h1>
-        <p class="muted">تحسب الجرعة حسب الوزن (الأدق من العمر). تأكد دائماً من تركيز الدواء المكتوب على العلبة واستعمل المحقنة أو الكوب المرفق.</p>
-        <label class="fld">الدواء</label>
-        <div class="seg" id="drugSeg">${Object.entries(SYRUPS).map(([k, v]) => `<button data-v="${k}" class="${st.drug === k ? "on" : ""}">${v.name}</button>`).join("")}</div>
+        <h1>${t("dose_title")}</h1>
+        <p class="muted">${t("dose_intro")}</p>
+        <label class="fld">${t("drug")}</label>
+        <div class="seg" id="drugSeg">${Object.entries(SYRUPS).map(([k, v]) => `<button data-v="${k}" class="${st.drug === k ? "on" : ""}">${t(v.nameKey)}</button>`).join("")}</div>
         <div class="row">
-          <div><label class="fld" for="w">وزن الطفل (كغ)</label><input type="number" id="w" inputmode="decimal" min="2" max="80" value="${esc(st.w)}" placeholder="مثال: 12"></div>
-          <div><label class="fld" for="am">العمر (بالأشهر)</label><input type="number" id="am" inputmode="numeric" min="0" max="216" value="${esc(st.ageM)}" placeholder="مثال: 18"></div>
+          <div><label class="fld" for="w">${t("weight")}</label><input type="number" id="w" inputmode="decimal" min="2" max="80" value="${esc(st.w)}" placeholder="${t("weight_ph")}"></div>
+          <div><label class="fld" for="am">${t("age_months")}</label><input type="number" id="am" inputmode="numeric" min="0" max="216" value="${esc(st.ageM)}" placeholder="${t("age_m_ph")}"></div>
         </div>
-        <label class="fld" for="conc">التركيز المكتوب على العلبة</label>
+        <label class="fld" for="conc">${t("concentration")}</label>
         <select id="conc"></select>
       </div>
       <div id="doseOut"></div>
-      ${disclaimer}
-    `, "حاسبة الجرعات", true);
-    const fillConc = () => { document.getElementById("conc").innerHTML = SYRUPS[st.drug].conc.map((c, i) => `<option value="${i}" ${+st.c === i ? "selected" : ""}>${c[2]}</option>`).join(""); };
+      ${disclaimer()}
+    `, t("dose_page"), true);
+    const fillConc = () => { document.getElementById("conc").innerHTML = SYRUPS[st.drug].conc.map((c, i) => `<option value="${i}" ${+st.c === i ? "selected" : ""}>${t(c[2])}</option>`).join(""); };
     const calc = () => {
       store.set("dose", st);
       const D = SYRUPS[st.drug], w = parseFloat(st.w), am = parseFloat(st.ageM);
       const out = document.getElementById("doseOut");
-      if (!(w > 0)) { out.innerHTML = `<div class="empty">أدخل وزن الطفل لحساب الجرعة.</div>`; return; }
-      const warn = [];
+      if (!(w > 0)) { out.innerHTML = `<div class="empty">${t("dose_enter_weight")}</div>`; return; }
       if (st.drug === "ibuprofen" && ((!isNaN(am) && am < 3) || w < 5)) {
-        out.innerHTML = `<div class="alert danger"><b>⛔ لا يُعطى</b>الإيبوبروفين لا يُعطى للرضع أقل من 3 أشهر أو أقل من 5 كغ. استشر الطبيب.</div>`; return;
+        out.innerHTML = `<div class="alert danger"><b>${t("ibu_no_title")}</b>${t("ibu_no")}</div>`; return;
       }
-      if (!isNaN(am) && am < 3) warn.push("الرضيع أقل من 3 أشهر مع حمى يحتاج تقييماً طبياً فورياً قبل أي دواء.");
-      if (w > 40) warn.push("الوزن فوق 40 كغ: تُستعمل غالباً جرعة البالغين مع عدم تجاوز الحد الأقصى.");
+      const warn = [];
+      if (!isNaN(am) && am < 3) warn.push(t("warn_infant"));
+      if (w > 40) warn.push(t("warn_heavy"));
       const lo = Math.min(D.lo * w, D.maxDose), hi = Math.min(D.hi * w, D.maxDose);
-      const [mg, ml] = D.conc[+st.c] || D.conc[0];
+      const conc = D.conc[+st.c] || D.conc[0];
       const r1 = v => Math.round(v * 10) / 10;
-      const mlLo = r1(lo / mg * ml), mlHi = r1(hi / mg * ml);
-      const maxDay = Math.min(D.maxDay * w, st.drug === "paracetamol" ? 4000 : 1200);
+      const mlLo = r1(lo / conc[0] * conc[1]), mlHi = r1(hi / conc[0] * conc[1]);
+      const maxDay = Math.min(D.maxDay * w, D.dayCap);
       out.innerHTML = `
         <div class="card dose-out">
-          <p>الجرعة الواحدة لـ ${esc(D.name)}:</p>
-          <p class="big">${mlLo === mlHi ? mlLo : mlLo + " – " + mlHi} مل</p>
-          <p class="muted">= ${Math.round(lo)}${lo !== hi ? "–" + Math.round(hi) : ""} ملغ ${D.every}</p>
+          <p>${t("single_dose", { d: t(D.nameKey) })}</p>
+          <p class="big">${mlLo === mlHi ? mlLo : mlLo + " – " + mlHi} ${t("ml")}</p>
+          <p class="muted">= ${Math.round(lo)}${lo !== hi ? "–" + Math.round(hi) : ""} ${t("mg")} ${t(D.everyKey)}</p>
           <table class="t">
-            <tr><th>الحد الأقصى اليومي</th><td>${Math.round(maxDay)} ملغ (لا تتجاوز ${D.perDay} جرعات في 24 ساعة)</td></tr>
-            <tr><th>التركيز</th><td>${esc(D.conc[+st.c][2])}</td></tr>
+            <tr><th>${t("max_daily")}</th><td>${t("max_daily_v", { mg: Math.round(maxDay), n: D.perDay })}</td></tr>
+            <tr><th>${t("conc")}</th><td>${t(conc[2])}</td></tr>
           </table>
         </div>
         ${warn.map(x => `<div class="alert warn">${esc(x)}</div>`).join("")}
-        <div class="alert info"><b>تذكير</b>لا تجمع بين دواءين يحتويان على نفس المادة. ${st.drug === "ibuprofen" ? "يُعطى مع الطعام. لا يُعطى مع الجفاف أو الجدري المائي أو الربو الحساس." : "انتبه لوجود الباراسيتامول في أدوية الزكام المركبة."} راجع الطبيب إذا استمرت الحمى أكثر من 48–72 ساعة.</div>`;
+        <div class="alert info"><b>${t("reminder")}</b>${t("remind_same")} ${t(st.drug === "ibuprofen" ? "remind_ibu" : "remind_para")} ${t("remind_tail")}</div>`;
     };
     document.getElementById("drugSeg").onclick = e => {
       const b = e.target.closest("button"); if (!b) return;
@@ -484,23 +526,24 @@
   }
 
   /* ---------- البحث ---------- */
-  const TYPE = { disease: ["📖", "مرض", "disease"], herb: ["🌿", "عشبة", "herb"], oil: ["💧", "زيت", "oil"], drug: ["💊", "دواء", "drug"], symptom: ["🩺", "عرض", null], culture: ["🌍", "ثقافة", "culture"] };
+  const TYPE = { disease: ["📖", "type_disease", "disease", "diseases"], herb: ["🌿", "type_herb", "herb", "herbs"], oil: ["💧", "type_oil", "oil", "oils"], drug: ["💊", "type_drug", "drug", "drugs"], symptom: ["🩺", "type_symptom", null, "symptoms"], culture: ["🌍", "type_culture", "culture", "cultures"] };
   function viewSearch(q) {
-    q = decodeURIComponent(q || "");
+    try { q = decodeURIComponent(q || ""); } catch (e) { q = q || ""; }
     render(`
-      <form id="sf" role="search"><input type="search" id="sq" value="${esc(q)}" placeholder="ابحث في كل التطبيق…" autofocus></form>
+      <form id="sf" role="search"><input type="search" id="sq" value="${esc(q)}" placeholder="${t("search_ph")}" autofocus></form>
       <div id="sres" class="list" style="margin-top:10px"></div>
-    `, "بحث", true);
+    `, t("search_title"), true);
     const draw = v => {
       const res = search(v);
       const box = document.getElementById("sres");
-      if (!v.trim()) { box.innerHTML = `<div class="empty">اكتب كلمة للبحث في الأمراض والأعشاب والزيوت والأدوية والأعراض.</div>`; return; }
+      if (!v.trim()) { box.innerHTML = `<div class="empty">${t("search_hint")}</div>`; return; }
       box.innerHTML = res.length ? res.slice(0, 60).map(r => {
-        const [ic, label, route] = TYPE[r.type];
+        const [ic, label, route, kind] = TYPE[r.type];
         const it = r.item;
         const href = route ? `#/${route}/${it.id}` : "#";
-        return `<a class="item" href="${href}" ${r.type === "symptom" ? `data-addsym="${it.id}"` : ""}><span class="ic">${ic}</span><span class="body"><b>${esc(it.ar)}</b><small>${label}${r.type === "symptom" ? " — اضغط لإضافته لمحلل الأعراض" : it.uses ? " · " + esc(it.uses) : it.en ? " · " + esc(it.en) : ""}</small></span></a>`;
-      }).join("") : `<div class="empty">لا نتائج لـ «${esc(v)}»</div>`;
+        const sub = r.type === "symptom" ? t(label) + t("add_symptom_hint") : t(label) + (it.uses ? " · " + tr(kind, it, "uses") : "");
+        return `<a class="item" href="${href}" ${r.type === "symptom" ? `data-addsym="${it.id}"` : ""}><span class="ic">${ic}</span><span class="body"><b>${esc(nm(kind, it))}</b><small>${esc(sub)}</small></span></a>`;
+      }).join("") : `<div class="empty">${esc(t("no_results_for", { q: v }))}</div>`;
     };
     const sq = document.getElementById("sq");
     sq.oninput = () => { draw(sq.value); history.replaceState(null, "", "#/search/" + encodeURIComponent(sq.value)); };
@@ -517,56 +560,50 @@
   /* ---------- المزيد / المفضلة / حول ---------- */
   function viewMore() {
     render(`
+      <div class="card tight"><label class="fld" style="margin-top:0">🌐 ${t("language")}</label>
+        <div class="seg" id="langSeg">${LANGS.map(l => `<button data-l="${l}" class="${l === LANG ? "on" : ""}">${I18N[l].ui.lang_name}</button>`).join("")}</div></div>
       <div class="list">
-        <a class="item" href="#/favs"><span class="ic">★</span><span class="body"><b>المفضلة</b><small>${state.favs.length} عنصر محفوظ</small></span><span class="chev">‹</span></a>
-        <a class="item" href="#/cultures"><span class="ic">🌍</span><span class="body"><b>الطب التقليدي حول العالم</b><small>${DB.cultures.length} أنظمة طبية</small></span><span class="chev">‹</span></a>
-        <a class="item" href="#/drugs"><span class="ic">💊</span><span class="body"><b>الأدوية الشائعة وجرعاتها</b><small>${DB.drugs.length} دواءً</small></span><span class="chev">‹</span></a>
-        <a class="item" href="#/dose"><span class="ic">🧮</span><span class="body"><b>حاسبة جرعات الأطفال</b><small>حسب الوزن</small></span><span class="chev">‹</span></a>
-        <a class="item" href="#/danger"><span class="ic">☠️</span><span class="body"><b>أعشاب خطيرة</b><small>تحذيرات السلامة</small></span><span class="chev">‹</span></a>
-        <a class="item" href="#/herbs/oils"><span class="ic">💧</span><span class="body"><b>الزيوت الطبية</b><small>عطرية وناقلة</small></span><span class="chev">‹</span></a>
-        <button class="item" id="themeBtn" style="text-align:start"><span class="ic">🌓</span><span class="body"><b>المظهر</b><small id="themeLbl"></small></span></button>
-        <a class="item" href="#/about"><span class="ic">ℹ️</span><span class="body"><b>حول التطبيق وإخلاء المسؤولية</b><small>المصادر والحدود</small></span><span class="chev">‹</span></a>
+        ${item("#/favs", "★", t("favs"), t("favs_sub", { n: state.favs.length }))}
+        ${item("#/cultures", "🌍", t("cultures_menu"), t("cultures_sub", { n: DB.cultures.length }))}
+        ${item("#/drugs", "💊", t("drugs_menu"), t("drugs_sub", { n: DB.drugs.length }))}
+        ${item("#/dose", "🧮", t("dose_menu"), t("dose_sub"))}
+        ${item("#/danger", "☠️", t("danger_menu"), t("danger_sub"))}
+        ${item("#/herbs/oils", "💧", t("oils_menu"), t("oils_sub"))}
+        <button class="item" id="themeBtn" style="text-align:start"><span class="ic">🌓</span><span class="body"><b>${t("appearance")}</b><small id="themeLbl"></small></span></button>
+        ${item("#/about", "ℹ️", t("about_menu"), t("about_sub"))}
       </div>
-    `, "المزيد");
-    const lbl = () => (document.getElementById("themeLbl").textContent = { "": "تلقائي حسب الجهاز", light: "فاتح", dark: "داكن" }[store.get("theme", "")]);
+    `, t("more_title"));
+    const lbl = () => (document.getElementById("themeLbl").textContent = t({ "": "theme_auto", light: "theme_light", dark: "theme_dark" }[store.get("theme", "")]));
     lbl();
     document.getElementById("themeBtn").onclick = () => {
       const order = ["", "light", "dark"];
-      const next = order[(order.indexOf(store.get("theme", "")) + 1) % 3];
-      store.set("theme", next); applyTheme(); lbl();
+      store.set("theme", order[(order.indexOf(store.get("theme", "")) + 1) % 3]); applyTheme(); lbl();
     };
+    document.getElementById("langSeg").onclick = e => { const b = e.target.closest("[data-l]"); if (b) setLang(b.dataset.l); };
   }
   function viewFavs() {
+    const maps = { disease: idx.disease, herb: idx.herb, oil: idx.oil, drug: idx.drug };
     const items = state.favs.map(k => {
       const [type, id] = k.split(":");
-      const map = { disease: idx.disease, herb: idx.herb, oil: idx.oil, drug: idx.drug }[type];
-      const it = map && map[id];
-      return it ? `<a class="item" href="#/${type}/${id}"><span class="ic">${TYPE[type][0]}</span><span class="body"><b>${esc(it.ar)}</b><small>${TYPE[type][1]}</small></span><span class="chev">‹</span></a>` : "";
+      const it = maps[type] && maps[type][id];
+      return it ? item(`#/${type}/${id}`, TYPE[type][0], nm(TYPE[type][3], it), t(TYPE[type][1])) : "";
     }).join("");
-    render(items ? `<div class="list">${items}</div>` : `<div class="empty">لا توجد عناصر في المفضلة. اضغط ☆ في صفحة أي مرض أو عشبة لحفظها.</div>`, "المفضلة", true);
+    render(items ? `<div class="list">${items}</div>` : `<div class="empty">${t("favs_empty")}</div>`, t("favs"), true);
   }
   function viewAbout() {
     render(`
-      <div class="section"><h2>🌿 عن «طبيب الأعشاب»</h2>
-        <p>موسوعة عربية تعمل دون إنترنت تجمع ${DB.diseases.length} مرضاً و${DB.symptoms.length} عرضاً و${DB.herbs.length} عشبة و${DB.oils.length} زيتاً و${DB.drugs.length} دواءً من ${DB.cultures.length} أنظمة طبية تقليدية، مع محلل أعراض يرجّح الأمراض المحتملة.</p></div>
-      <div class="section"><h2>⚙️ كيف يعمل محلل الأعراض؟</h2>
-        <p>لكل مرض قائمة أعراض بأوزان (مميز / شائع / ممكن). يحسب التطبيق مدى تغطية أعراضك لأعراض المرض ومدى تفسير المرض لأعراضك، ثم يعدّل النتيجة حسب الفئة العمرية والجنس ومدة الأعراض، ويعرض الاحتمالات الأعلى مع نسبة ترجيح نسبية. كما يفحص «علامات الخطر» التي تستدعي الطوارئ.</p></div>
-      <div class="section"><h2>📚 المصادر</h2><ul>
-        <li>منظمة الصحة العالمية (WHO) — الأدلة الإرشادية والطب التقليدي</li>
-        <li>الوكالة الأوروبية للأدوية (EMA) — دراسات الأعشاب الطبية (HMPC)</li>
-        <li>المعهد الوطني الأمريكي للصحة التكميلية (NCCIH)</li>
-        <li>اللجنة الألمانية E ومراجع العلاج بالنباتات</li>
-        <li>كتب التراث: القانون في الطب لابن سينا، الجامع لمفردات الأدوية والأغذية لابن البيطار، الطب النبوي لابن القيم</li>
-      </ul></div>
-      <div class="alert danger"><b>⚕️ إخلاء المسؤولية</b>هذا التطبيق للتثقيف الصحي فقط وليس أداة تشخيص طبية. النتائج احتمالات تقريبية قد تكون خاطئة. لا يُغني عن الطبيب. الجرعات المذكورة عامة للبالغين الأصحاء ما لم يُذكر غير ذلك، وتختلف حسب الحالة والأدوية الأخرى. الحامل والمرضع والأطفال وأصحاب الأمراض المزمنة يستشيرون الطبيب قبل أي عشبة. في الطوارئ اتصل بالإسعاف.</div>
-    `, "حول التطبيق", true);
+      <div class="section"><h2>${t("about_title")}</h2><p>${t("about_text", { d: DB.diseases.length, s: DB.symptoms.length, h: DB.herbs.length, o: DB.oils.length, r: DB.drugs.length, c: DB.cultures.length })}</p></div>
+      <div class="section"><h2>${t("how_title")}</h2><p>${t("how_text")}</p></div>
+      <div class="section"><h2>${t("sources_title")}</h2>${ulist(t("sources"))}</div>
+      <div class="alert danger"><b>${t("disclaimer_title")}</b>${t("disclaimer_full")}</div>
+    `, t("about_page"), true);
   }
-  function notFound() { render(`<div class="empty">الصفحة غير موجودة. <a href="#/">العودة للرئيسية</a></div>`, "غير موجود", true); }
+  function notFound() { render(`<div class="empty">${t("not_found")} <a href="#/">${t("back_home")}</a></div>`, t("page_not_found"), true); }
 
   /* ---------- المظهر ---------- */
   function applyTheme() {
-    const t = store.get("theme", "");
-    if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
+    const th = store.get("theme", "");
+    if (th) document.documentElement.setAttribute("data-theme", th); else document.documentElement.removeAttribute("data-theme");
   }
 
   /* ---------- الموجّه ---------- */
@@ -602,7 +639,7 @@
     notFound();
   }
 
-  // المفضلة (تفويض عام)
+  // المفضلة
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-fav]"); if (!b) return;
     const k = b.dataset.fav;
@@ -610,21 +647,26 @@
     if (i >= 0) state.favs.splice(i, 1); else state.favs.push(k);
     store.set("favs", state.favs);
     b.classList.toggle("on", i < 0); b.textContent = i < 0 ? "★" : "☆";
-    toast(i < 0 ? "أُضيف إلى المفضلة" : "حُذف من المفضلة");
+    toast(t(i < 0 ? "fav_added" : "fav_removed"));
   });
   $back.onclick = () => (history.length > 1 ? history.back() : (location.hash = "#/"));
   document.getElementById("searchBtn").onclick = () => (location.hash = "#/search/");
   document.getElementById("brand").onclick = () => (location.hash = "#/");
+  document.getElementById("langBtn").onclick = () => {
+    const next = LANGS[(LANGS.indexOf(LANG) + 1) % LANGS.length];
+    setLang(next); toast(I18N[next].ui.lang_name);
+  };
 
   // يُستدعى من تطبيق أندرويد عند ضغط زر الرجوع
   window.tabibBack = function () {
     const path = location.hash.replace(/^#/, "") || "/";
-    if (path === "/" ) return false;
+    if (path === "/") return false;
     history.back();
     return true;
   };
 
   applyTheme();
+  applyLang();
   window.addEventListener("hashchange", route);
   route();
 

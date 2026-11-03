@@ -6,6 +6,9 @@
   function norm(s) {
     return String(s || "")
       .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // accents
+      .normalize("NFC")
       .replace(/[ً-ْٰـ]/g, "") // تشكيل وتطويل
       .replace(/[أإآٱ]/g, "ا")
       .replace(/ى/g, "ي")
@@ -28,6 +31,35 @@
   DB.cultures.forEach(c => (idx.culture[c.id] = c));
   DB.symptomGroups.forEach(g => (idx.group[g.id] = g));
   DB.categories.forEach(c => (idx.category[c.id] = c));
+
+  DB.redFlags.forEach((r, i) => (r.idx = i));
+
+  /* نص البحث لكل عنصر بكل اللغات المحمّلة (عربي + إنجليزي + فرنسي) */
+  const I18N = root.I18N || {};
+  function trText(kind, item) {
+    const parts = [];
+    for (const lang of ["en", "fr"]) {
+      const t = I18N[lang] && I18N[lang][kind] && I18N[lang][kind][item.id];
+      if (!t) continue;
+      if (typeof t === "string") parts.push(t);
+      else parts.push(t.name || "", t.uses || "", t.desc || "", t.cls || "", t.use || "", t.region || "");
+    }
+    return parts.join(" ");
+  }
+  function trName(kind, item) {
+    const parts = [];
+    for (const lang of ["en", "fr"]) {
+      const t = I18N[lang] && I18N[lang][kind] && I18N[lang][kind][item.id];
+      if (t) parts.push(typeof t === "string" ? t : t.name || "");
+    }
+    return parts.join(" ");
+  }
+  const hayCache = new Map();
+  function hay(kind, item, extra) {
+    const k = kind + ":" + item.id;
+    if (!hayCache.has(k)) hayCache.set(k, norm(extra + " " + trText(kind, item)));
+    return hayCache.get(k);
+  }
 
   // ربط عكسي: الأعشاب والزيوت ← الأمراض
   const herbToDiseases = {}, oilToDiseases = {};
@@ -116,41 +148,43 @@
     }
     const fever = sel.includes("fever") || sel.includes("high_fever");
     if (fever && years != null && years < 0.25)
-      out.unshift({ level: 4, msg: "أي حمى (38° أو أكثر) عند رضيع عمره أقل من 3 أشهر حالة طارئة — توجّه للطبيب أو الطوارئ فوراً." });
+      out.unshift({ level: 4, key: "flag_infant_fever" });
     if (sel.includes("high_fever") && sel.includes("rash"))
-      out.push({ level: 4, msg: "الحمى العالية مع طفح جلدي لا يختفي عند الضغط عليه بكأس زجاجي قد تكون علامة خطيرة — راجع الطوارئ." });
+      out.push({ level: 4, key: "flag_fever_rash" });
     if (input && input.pregnant && (sel.includes("pelvic_pain") || sel.includes("heavy_periods") || sel.includes("severe_headache") || sel.includes("blurred_vision")))
-      out.push({ level: 4, msg: "أثناء الحمل: النزيف أو ألم الحوض الشديد أو الصداع الشديد مع تشوش الرؤية تحتاج مراجعة الطوارئ فوراً." });
+      out.push({ level: 4, key: "flag_pregnancy" });
     if (years != null && years < 2 && (sel.includes("diarrhea") || sel.includes("vomiting")))
-      out.push({ level: 3, msg: "الرضّع يُصابون بالجفاف بسرعة: أعطِ محلول الإرواء وراقب البول والنشاط، وراجع الطبيب إذا قلّ البول أو خمل الطفل." });
+      out.push({ level: 3, key: "flag_infant_dehydration" });
     out.sort((a, b) => b.level - a.level);
     return out;
   }
 
-  /* ---------- البحث الشامل ---------- */
+  /* ---------- البحث الشامل (كل اللغات) ---------- */
   function search(q) {
     const nq = norm(q);
     if (!nq) return [];
     const terms = nq.split(" ");
-    const hit = (...fields) => {
-      const hay = norm(fields.join(" "));
-      return terms.every(t => hay.includes(t));
-    };
     const res = [];
-    DB.diseases.forEach(d => { if (hit(d.ar, d.en, d.desc)) res.push({ type: "disease", item: d, rank: norm(d.ar).includes(nq) ? 0 : 2 }); });
-    DB.herbs.forEach(h => { if (hit(h.ar, h.en, h.lat, h.uses)) res.push({ type: "herb", item: h, rank: norm(h.ar).includes(nq) ? 0 : 2 }); });
-    DB.oils.forEach(o => { if (hit(o.ar, o.en, o.uses)) res.push({ type: "oil", item: o, rank: norm(o.ar).includes(nq) ? 0 : 2 }); });
-    DB.drugs.forEach(d => { if (hit(d.ar, d.en, d.use, d.cls)) res.push({ type: "drug", item: d, rank: norm(d.ar).includes(nq) ? 1 : 3 }); });
-    DB.symptoms.forEach(s => { if (hit(s.ar, s.kw)) res.push({ type: "symptom", item: s, rank: 1 }); });
-    DB.cultures.forEach(c => { if (hit(c.ar, c.desc)) res.push({ type: "culture", item: c, rank: 2 }); });
-    res.sort((a, b) => a.rank - b.rank);
+    const add = (type, kind, item, extra) => {
+      const h = hay(kind, item, extra);
+      if (!terms.every(t => h.includes(t))) return;
+      const nameHay = norm((item.ar || "") + " " + (item.en || "") + " " + trName(kind, item));
+      res.push({ type, item, rank: nameHay.includes(nq) ? 0 : 2 });
+    };
+    DB.diseases.forEach(d => add("disease", "diseases", d, [d.ar, d.en, d.desc].join(" ")));
+    DB.herbs.forEach(h => add("herb", "herbs", h, [h.ar, h.en, h.lat, h.uses].join(" ")));
+    DB.oils.forEach(o => add("oil", "oils", o, [o.ar, o.en, o.uses].join(" ")));
+    DB.drugs.forEach(d => add("drug", "drugs", d, [d.ar, d.en, d.use, d.cls].join(" ")));
+    DB.symptoms.forEach(s => add("symptom", "symptoms", s, s.ar + " " + s.kw));
+    DB.cultures.forEach(c => add("culture", "cultures", c, c.ar + " " + c.desc));
+    res.sort((x, y) => x.rank - y.rank);
     return res;
   }
 
   function filterSymptoms(q) {
     const nq = norm(q);
     if (!nq) return DB.symptoms;
-    return DB.symptoms.filter(s => norm(s.ar + " " + s.kw).includes(nq));
+    return DB.symptoms.filter(s => hay("symptoms", s, s.ar + " " + s.kw).includes(nq));
   }
 
   root.Engine = { norm, idx, analyze, search, filterSymptoms, ageGroup, AGE_LABEL, herbToDiseases, oilToDiseases };

@@ -30,8 +30,31 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # مفتاح توقيع ثابت بين البناءات حتى تُثبَّت النسخ الجديدة كتحديث
+      - name: استرجاع مفتاح التصحيح الثابت
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: tabib-debug-keystore-v1
+
+      - name: مفتاح التوقيع من GitHub Secrets (اختياري)
+        env:
+          KS_B64: ${{ secrets.TABIB_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/tabib.jks"
+            echo "TABIB_KEYSTORE_FILE=$RUNNER_TEMP/tabib.jks" >> "$GITHUB_ENV"
+            echo "سيتم التوقيع بالمفتاح الخاص"
+          else
+            echo "لا يوجد مفتاح خاص — سيتم التوقيع بمفتاح التصحيح الثابت"
+          fi
+
       - name: بناء APK
         working-directory: medicine-app/android
+        env:
+          TABIB_KEYSTORE_PASSWORD: ${{ secrets.TABIB_KEYSTORE_PASSWORD }}
+          TABIB_KEY_ALIAS: ${{ secrets.TABIB_KEY_ALIAS }}
+          TABIB_KEY_PASSWORD: ${{ secrets.TABIB_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
