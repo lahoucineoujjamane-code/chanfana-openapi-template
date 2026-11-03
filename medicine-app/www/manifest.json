@@ -1,0 +1,18 @@
+{
+  "name": "طبيب الأعشاب — موسوعة الطب والأعشاب",
+  "short_name": "طبيب الأعشاب",
+  "description": "الأمراض وأعراضها، الأعشاب والزيوت الطبية من ثقافات العالم، الجرعات، ومحلل أعراض.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e7c66",
+  "theme_color": "#0e7c66",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

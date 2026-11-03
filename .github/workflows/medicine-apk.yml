@@ -1,0 +1,45 @@
+name: طبيب الأعشاب — بناء تطبيق أندرويد (APK)
+
+on:
+  push:
+    paths:
+      - "medicine-app/**"
+      - ".github/workflows/medicine-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: التحقق من البيانات ومحرك الترجيح
+        run: node medicine-app/tests/validate.mjs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: بناء APK
+        working-directory: medicine-app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          mkdir -p ../dist
+          cp app/build/outputs/apk/release/app-release.apk ../dist/tabib-al-aashab.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tabib-al-aashab-apk
+          path: medicine-app/dist/tabib-al-aashab.apk
+          if-no-files-found: error
