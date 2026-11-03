@@ -292,7 +292,7 @@
       </div>
       ${isOils ? `<details class="group" style="margin-top:8px"><summary>📌 قواعد السلامة في استعمال الزيوت</summary><ul style="padding:0 30px 12px 12px">${DB.oilRules.map(r => `<li>${esc(r)}</li>`).join("")}</ul></details>` : ""}
       <div class="list" id="hlist" style="margin-top:8px"></div>
-      ${!isOils ? `<a class="item" href="#/danger" style="margin-top:10px;border-color:var(--danger)"><span class="ic">☠️</span><span class="body"><b>أعشاب خطيرة وسامة</b><small>الحرمل، الفليو، الدفلى، الداتورة</small></span><span class="chev">‹</span></a>` : ""}
+      ${!isOils ? `<a class="item" href="#/danger" style="margin-top:10px;border-color:var(--danger)"><span class="ic">☠️</span><span class="body"><b>أعشاب خطيرة وسامة</b><small>الحرمل، الفليو، الدفلى، الداتورة، السذاب، الحنظل</small></span><span class="chev">‹</span></a>` : ""}
     `, isOils ? "الزيوت الطبية" : "الأعشاب الطبية");
     const draw = () => {
       const nq = Engine.norm(document.getElementById("hq").value);

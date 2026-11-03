@@ -1,9 +1,9 @@
 /* يعمل التطبيق بالكامل دون إنترنت */
-const CACHE = "tabib-v1";
+const CACHE = "tabib-v2";
 const ASSETS = [
   "./", "./index.html", "./manifest.json", "./css/style.css",
   "./js/engine.js", "./js/app.js",
-  "./js/data/symptoms.js", "./js/data/cultures.js", "./js/data/herbs.js",
+  "./js/data/symptoms.js", "./js/data/cultures.js", "./js/data/herbs.js", "./js/data/herbs-extra.js", "./js/data/diseases-extra.js",
   "./js/data/oils.js", "./js/data/drugs.js", "./js/data/diseases.js",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png"
 ];

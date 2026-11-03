@@ -9,7 +9,7 @@ const www = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "www",
 const ctx = { globalThis: null };
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ["data/symptoms.js", "data/cultures.js", "data/herbs.js", "data/oils.js", "data/drugs.js", "data/diseases.js", "engine.js"])
+for (const f of ["data/symptoms.js", "data/cultures.js", "data/herbs.js", "data/herbs-extra.js", "data/oils.js", "data/drugs.js", "data/diseases.js", "data/diseases-extra.js", "engine.js"])
   vm.runInContext(fs.readFileSync(path.join(www, f), "utf8"), ctx, { filename: f });
 const { DB, Engine } = ctx;
 const { idx } = Engine;
@@ -54,6 +54,16 @@ const cases = [
   [{ symptoms: ["wheezing", "shortness_breath", "chest_tightness", "dry_cough"], ageYears: 10 }, "asthma"],
   [{ symptoms: ["chest_pain", "arm_jaw_pain", "sweating", "shortness_breath"], ageYears: 60, sex: "m" }, "heart_attack"],
   [{ symptoms: ["hot_flashes", "night_sweats", "irregular_periods"], ageYears: 51, sex: "f" }, "menopause"],
+  [{ symptoms: ["anal_itch", "insomnia"], ageYears: 6 }, "worms"],
+  [{ symptoms: ["swollen_cheek", "fever"], ageYears: 8 }, "mumps"],
+  [{ symptoms: ["infant_crying", "irritability"], ageYears: 0.2 }, "infant_colic"],
+  [{ symptoms: ["tremor", "slow_movement"], ageYears: 70, sex: "m" }, "parkinson"],
+  [{ symptoms: ["memory_loss", "confusion"], ageYears: 78 }, "dementia"],
+  [{ symptoms: ["eye_pain", "blurred_vision", "eye_halos", "headache"], ageYears: 65 }, "glaucoma_acute"],
+  [{ symptoms: ["milk_trigger", "bloating", "diarrhea"], ageYears: 30 }, "lactose_intolerance"],
+  [{ symptoms: ["missed_period", "nausea", "vomiting"], ageYears: 27, sex: "f" }, "morning_sickness"],
+  [{ symptoms: ["band_rash", "blisters"], ageYears: 62 }, "shingles"],
+  [{ symptoms: ["fever", "night_sweats", "joint_pain", "back_pain"], ageYears: 40, duration: "sub" }, "brucellosis"],
 ];
 let fail = 0;
 for (const [input, expected] of cases) {
