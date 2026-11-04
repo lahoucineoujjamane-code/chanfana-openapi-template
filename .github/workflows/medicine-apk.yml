@@ -13,6 +13,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
     steps:
       - uses: actions/checkout@v4
 
@@ -57,12 +59,32 @@ jobs:
           TABIB_KEY_PASSWORD: ${{ secrets.TABIB_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace
           mkdir -p ../dist
           cp app/build/outputs/apk/release/app-release.apk ../dist/tabib-al-aashab.apk
+          cp app/build/outputs/bundle/release/app-release.aab ../dist/tabib-al-aashab.aab
 
       - uses: actions/upload-artifact@v4
         with:
           name: tabib-al-aashab-apk
           path: medicine-app/dist/tabib-al-aashab.apk
           if-no-files-found: error
+
+      # ملف AAB لـ Google Play (يجب أن يكون موقّعاً بمفتاح الرفع من GitHub Secrets)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tabib-al-aashab-aab-google-play
+          path: medicine-app/dist/tabib-al-aashab.aab
+          if-no-files-found: error
+
+      # رفع تلقائي إلى Google Play (مسودة على مسار الاختبار الداخلي)
+      # يعمل فقط بعد إضافة السر PLAY_SERVICE_ACCOUNT_JSON وبعد أول رفع يدوي من Play Console
+      - name: الرفع إلى Google Play
+        if: ${{ env.PLAY_JSON != '' && env.TABIB_KEYSTORE_FILE != '' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.tabib.herbs
+          releaseFiles: medicine-app/dist/tabib-al-aashab.aab
+          track: internal
+          status: draft

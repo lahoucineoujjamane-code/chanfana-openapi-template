@@ -1,0 +1,23 @@
+Nom de l'application (30 caractères max) :
+Médecin des Plantes & Santé
+
+Description courte (80 caractères max) :
+Maladies, plantes et huiles des médecines du monde, avec analyseur de symptômes
+
+Description complète :
+🌿 Médecin des Plantes est une encyclopédie de santé hors ligne en trois langues (arabe, français, anglais).
+
+📖 105 maladies : symptômes, causes, traitement médical, plantes et huiles utiles, remèdes traditionnels, hygiène de vie et quand consulter.
+
+🌿 106 plantes et 22 huiles : préparation, dose adulte et enfant, sécurité pendant la grossesse, contre-indications et interactions, avec une section sur les plantes toxiques (harmel, laurier-rose, pouliot…).
+
+🌍 11 médecines traditionnelles : arabe et prophétique, marocaine et amazighe, gréco-islamique, persane, chinoise, ayurvédique, Kampo japonaise, européenne, africaine et amérindienne.
+
+🩺 Analyseur de symptômes éducatif : indiquez votre âge, votre sexe et vos symptômes (165) pour voir les possibilités les plus proches, avec des alertes immédiates pour les signes nécessitant une urgence.
+
+🧮 Calcul des doses de paracétamol et d'ibuprofène pour l'enfant selon le poids.
+💊 40 médicaments courants avec doses et précautions.
+⭐ Favoris, mode sombre, recherche dans toutes les langues.
+🔒 Aucune donnée personnelle collectée, fonctionne sans internet.
+
+⚕️ Avertissement : application à but éducatif uniquement ; elle ne pose pas de diagnostic et ne remplace pas un médecin ou un pharmacien. En cas d'urgence, appelez les secours.

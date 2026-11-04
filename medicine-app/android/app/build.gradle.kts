@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.tabib.herbs"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.tabib.herbs"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         // رقم الإصدار يزيد تلقائياً مع كل بناء على GitHub حتى يقبل أندرويد التحديث
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toInt() + 1
         versionName = "1.1." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")

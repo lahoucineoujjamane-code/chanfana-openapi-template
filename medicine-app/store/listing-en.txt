@@ -1,0 +1,23 @@
+App name (max 30 characters):
+Herbal Doctor: Herbs & Health
+
+Short description (max 80 characters):
+Diseases, herbs and oils from world medicine, with an educational symptom guide
+
+Full description:
+🌿 Herbal Doctor is an offline health encyclopedia in three languages (Arabic, French, English).
+
+📖 105 diseases: symptoms, causes, medical treatment, helpful herbs and oils, traditional remedies, lifestyle and when to see a doctor.
+
+🌿 106 herbs and 22 oils: preparation, adult and child doses, pregnancy safety, contraindications and drug interactions, plus a section on toxic plants (harmal, oleander, pennyroyal…).
+
+🌍 11 traditional medicine systems: Arabic & Prophetic, Moroccan & Amazigh, Greco-Islamic (Unani), Persian, Chinese, Ayurveda, Japanese Kampo, European, African and Native American.
+
+🩺 Educational symptom guide: enter your age, sex and symptoms (165) to see the closest possibilities, with instant alerts for warning signs that need emergency care.
+
+🧮 Child dose calculator for paracetamol and ibuprofen by weight.
+💊 40 common medicines with doses and warnings.
+⭐ Favorites, dark mode, search in any language.
+🔒 Collects no personal data and works without internet.
+
+⚕️ Disclaimer: for health education only. It does not provide a medical diagnosis and does not replace a doctor or pharmacist. In an emergency, call an ambulance.

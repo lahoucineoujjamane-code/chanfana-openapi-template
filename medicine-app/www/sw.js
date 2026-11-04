@@ -7,7 +7,7 @@ const ASSETS = [
   "./js/engine.js", "./js/app.js",
   "./js/data/symptoms.js", "./js/data/cultures.js", "./js/data/herbs.js", "./js/data/herbs-extra.js", "./js/data/diseases-extra.js",
   "./js/data/oils.js", "./js/data/drugs.js", "./js/data/diseases.js",
-  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png"
+  "./privacy.html", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png"
 ];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener("activate", e => {
