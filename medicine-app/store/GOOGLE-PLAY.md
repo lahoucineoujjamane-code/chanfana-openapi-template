@@ -47,7 +47,7 @@
 - ارفع الأيقونة وصورة الغلاف ولقطات `ar-*.png` (من 2 إلى 8 لقطات).
 - **Add translations ←** الفرنسية (fr-FR) والإنجليزية (en-US) وانسخ من `listing-fr.txt` و`listing-en.txt` مع لقطات `fr-*` و`en-*`.
 - الفئة (Category): **Medical** أو **Health & Fitness** (أنصح بـ Medical لأنه موسوعة طبية).
-- البريد الإلكتروني للتواصل: بريدك.
+- البريد الإلكتروني للتواصل: Sabahshp@gmail.com
 
 ## 5) محتوى التطبيق (Policy ← App content) — الإجابات الجاهزة
 | القسم | الإجابة |
@@ -81,5 +81,4 @@
 
 ---
 ### ⚠️ قبل النشر
-- استبدل `CONTACT_EMAIL` في `PRIVACY.md` و`www/privacy.html` ببريد التواصل الذي تريد أن يظهر للعموم.
 - اسم الحزمة `com.tabib.herbs` نهائي بعد أول رفع ولا يمكن تغييره. إذا رفض Play الاسم لأنه مستعمل، غيّر `applicationId` في `android/app/build.gradle.kts` (مثل `com.tabibalaashab.app`) وفي سير العمل.

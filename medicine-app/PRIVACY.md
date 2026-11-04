@@ -10,7 +10,7 @@
 - **No permissions** are requested (no location, camera, contacts or storage access).
 - **Children.** The app is not directed at children and collects no data from anyone.
 - **Medical disclaimer.** The app is for health education only and does not provide a diagnosis or replace a doctor. In an emergency, call your local emergency number.
-- **Contact:** CONTACT_EMAIL
+- **Contact:** Sabahshp@gmail.com
 
 ## العربية
 
@@ -20,7 +20,7 @@
 - **لا يطلب أي أذونات** (لا موقع ولا كاميرا ولا جهات اتصال ولا ملفات).
 - **الأطفال:** التطبيق غير موجّه للأطفال ولا يجمع بيانات من أي شخص.
 - **تنبيه طبي:** التطبيق للتثقيف الصحي فقط ولا يقدم تشخيصاً ولا يغني عن الطبيب. في الطوارئ اتصل بالإسعاف.
-- **للتواصل:** CONTACT_EMAIL
+- **للتواصل:** Sabahshp@gmail.com
 
 ## Français
 
@@ -30,4 +30,4 @@
 - **Aucune autorisation** n'est demandée (ni localisation, ni caméra, ni contacts, ni fichiers).
 - **Enfants :** l'application ne s'adresse pas aux enfants et ne collecte aucune donnée.
 - **Avertissement médical :** application à but éducatif uniquement ; elle ne pose pas de diagnostic et ne remplace pas un médecin. En cas d'urgence, appelez les secours.
-- **Contact :** CONTACT_EMAIL
+- **Contact :** Sabahshp@gmail.com
