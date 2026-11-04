@@ -40,7 +40,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.findByName("tabib") ?: signingConfigs.getByName("debug")
+            // -Ptabib.unsignedBundle: يُبنى ملف AAB دون توقيع ليوقَّع لاحقاً بمفتاح الرفع خارج GitHub
+            signingConfig = if (project.hasProperty("tabib.unsignedBundle")) null
+                else signingConfigs.findByName("tabib") ?: signingConfigs.getByName("debug")
         }
     }
 

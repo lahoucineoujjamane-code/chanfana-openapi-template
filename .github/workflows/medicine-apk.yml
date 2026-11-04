@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -59,9 +59,15 @@ jobs:
           TABIB_KEY_PASSWORD: ${{ secrets.TABIB_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
           mkdir -p ../dist
           cp app/build/outputs/apk/release/app-release.apk ../dist/tabib-al-aashab.apk
+          if [ -n "$TABIB_KEYSTORE_FILE" ]; then
+            ./gradlew bundleRelease --no-daemon --stacktrace
+          else
+            # بدون مفتاح خاص: AAB غير موقّع (يوقَّع بمفتاح الرفع قبل Google Play)
+            ./gradlew bundleRelease -Ptabib.unsignedBundle=true --no-daemon --stacktrace
+          fi
           cp app/build/outputs/bundle/release/app-release.aab ../dist/tabib-al-aashab.aab
 
       - uses: actions/upload-artifact@v4
@@ -88,3 +94,17 @@ jobs:
           releaseFiles: medicine-app/dist/tabib-al-aashab.aab
           track: internal
           status: draft
+
+      # نشر آخر نسخة كـ Release برابط تنزيل مباشر (بدون ZIP وبدون تسجيل دخول)
+      - name: نشر آخر نسخة على صفحة Releases
+        if: github.event_name == 'workflow_dispatch' || github.ref_name == 'claude/comprehensive-medicine-app-6fe258' || github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest \
+            medicine-app/dist/tabib-al-aashab.apk \
+            medicine-app/dist/tabib-al-aashab.aab \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "طبيب الأعشاب — آخر نسخة (${GITHUB_RUN_NUMBER})" \
+            --notes "تحميل مباشر: tabib-al-aashab.apk للتثبيت على الهاتف. ملف .aab خاص بـ Google Play."
